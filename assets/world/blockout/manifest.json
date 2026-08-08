@@ -1,0 +1,54 @@
+{
+  "schema_version": "v3-gate0-corrected",
+  "work_date": "2026-08-05",
+  "purpose": "Gate 0 item 2 — regenerated bundle manifest. Two-level hash (A18 §C4) unchanged in DESIGN from A21; this regeneration fixes the bug where A21's own manifest_hash_formula was excluded from the content it hashed (it should be bound INTO the hash, only manifest_hash itself excluded), and rebuilds input_spec_hash from ONE canonical bundleSpec object literally shared with the runtime validator (game/src/blockout-validate.js), not a parallel re-implementation.",
+  "authority": "ZERO-PROP (A15/A16/A20's adopted park-all-29 default) — same authority A21 targeted.",
+  "input_spec_hash": "6282be0a86130823a618997951064fdd7dbd9cd5fd856e881f5f9576ed39c7f3",
+  "input_spec_hash_formula": "sha256(canonicalStringify(buildBundleSpec({grid, boundaryPolicy, props, resolution:{43,CFG.tile}, playerRadiusFraction:CFG.playerRadius, contactBandVersion, maskGeneratorVersion}))) — see game/src/blockout-validate.js buildBundleSpec()/canonicalStringify(), the SAME functions the runtime validator calls.",
+  "components": {
+    "grid": {
+      "cell_count": 1350,
+      "row_count": 27
+    },
+    "boundary_policy": {
+      "decorativeRows": 0,
+      "id": "amendment-04-08-2026-default"
+    },
+    "active_props": {
+      "count": 0
+    },
+    "resolution": {
+      "source_tile_px": 43,
+      "cfg_tile_px": 64
+    },
+    "player_radius_fraction": 0.34,
+    "contact_band_version": "contact-band-v1-height6",
+    "mask_generator_version": "mask-generator-v1-amend_generate_masks"
+  },
+  "images": {
+    "wall": {
+      "file": "blockout-mask-wall.png",
+      "sha256": "99df547dc803af2fc78a0805d37c9381aaf8b928ed14a15745af1c2a63a9b14b"
+    },
+    "lake": {
+      "file": "blockout-mask-lake.png",
+      "sha256": "bf086469fde238adc813e14a1bfa13a322107d77a37e93e101854822213d99c9"
+    },
+    "foliage": {
+      "file": "blockout-mask-foliage.png",
+      "sha256": "9d136252682c608cd1647f552dc4946b0b115bb58ff86fbcabb085351b52bbd2"
+    }
+  },
+  "runtime_validation_sequence": [
+    "1. Recompute input_spec_hash from the LIVE selected bundle (window.ARENA) + CFG, using the exact buildBundleSpec()/canonicalStringify() functions this generator also calls — must equal this manifest's input_spec_hash.",
+    "2. Fetch each of the 3 mask PNGs' raw bytes and recompute SHA-256 fresh — must equal this manifest's per-file images.<role>.sha256, individually.",
+    "3. Recompute this manifest's own content (every field except manifest_hash — manifest_hash_formula included, unlike the old A21 bug) and rehash — must equal manifest_hash below.",
+    "Any ONE mismatch fails closed — boot STOPS with a full-screen staging error under blockout mode; it never partially trusts a bundle matching on some but not all components, and never silently falls back to the ordinary path."
+  ],
+  "supersedes": {
+    "file": "A21-bundle-manifest-v2.json",
+    "reason": "A21's manifest_hash_formula excluded itself from the hashed content (only correct half of \"exclude only manifest_hash\" — Gate 0 item 2's instruction). A21 is left exactly as filed, not edited; this is a NEW corrected regeneration, consumed by the actual runtime."
+  },
+  "manifest_hash_formula": "sha256(canonicalStringify(manifest_dict_excluding_ONLY_the_manifest_hash_field)) — manifest_hash_formula itself IS included in the hashed content this time.",
+  "manifest_hash": "d972d6ad59fb7a2be8ff1d76b0c1430ccbf09b3ea905f3d9634b91ee813b82ad"
+}

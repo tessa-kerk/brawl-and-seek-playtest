@@ -1,0 +1,573 @@
+/* Brawl & Seek — layout & UI chrome. The arena itself is drawn on <canvas>;
+ * everything textual (title bar, hint, build stamp) is DOM so it stays crisp at
+ * any scale, including 360px phone width. */
+
+:root{
+  --navy:#1E2340; --yellow:#FFC800; --magenta:#FF4FA0;
+  --teal:#35E0D0; --chalk:#F6F4EF; --ink:#14172B;
+  --navy-2:#171B33;           /* the letterbox / deepest background */
+}
+
+/* ---- Landscape-only lock (fidelity rule 3g) --------------------------
+   Pure-CSS media-query guard: portrait shows this, hides nothing else (the
+   game keeps running underneath — no state loss on rotate). Landscape hides
+   this entirely (display:none, not just opacity, so it can never eat touches). */
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overscroll-behavior:none;}
+body{
+  background:var(--navy-2);
+  color:var(--chalk);
+  font-family:'Nunito Sans',system-ui,sans-serif;
+  overflow:hidden;
+  position:fixed;inset:0;               /* pin the page so iOS can't rubber-band it */
+  -webkit-user-select:none;user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;           /* no long-press callout stealing the touch */
+  touch-action:none;overscroll-behavior:none;
+}
+
+/* Stage = the fixed-viewport play area. Canvas fills it; DOM chrome overlays.
+   touch-action:none on the surface itself is the reliable way to stop iOS
+   pan / pinch / double-tap-zoom eating a game touch. */
+#stage{position:fixed;inset:0;overflow:hidden;touch-action:none;overscroll-behavior:none;}
+#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;}
+
+/* No rotate prompt (Concept Brief rule 3l, 20-07-2026 — "it loads landscape
+   and you turn," never a stop-and-ask screen). Held portrait, #stage itself
+   rotates 90° to fill the physical viewport landscape-style: its OWN layout
+   box is sized 100vh×100vw (so canvas.clientWidth/Height, read in game.js
+   resize(), naturally comes out as a landscape box regardless of which way
+   the phone is held — zero fit-formula changes needed), then rotated into
+   place. The large viewport units deliberately include the home-indicator
+   side of an iPhone's physical screen; touch coordinates are inverted from
+   the transformed stage rectangle in src/input.js. A CSS
+   transform on #stage makes it the containing block for its position:fixed
+   descendants too (the joystick ring/nub, appended into #stage) — they
+   already compute their positions in this same rotated-box coordinate
+   space, so they land correctly with no extra CSS needed. */
+@media (orientation:portrait) and (pointer:coarse) and (hover:none){
+  #stage{
+    top:0; left:0; right:auto; bottom:auto;
+    width:max(100lvh,100dvh); height:100lvw;
+    transform-origin:top left;
+    transform:rotate(90deg) translateY(-100%);
+  }
+}
+
+/* Fine-pointer desktop windows can be taller than wide without becoming a
+   phone. Keep the gameplay composition upright and centre the audited
+   landscape camera surface inside honest Night Navy letterbox space. */
+@media (orientation:portrait) and (pointer:fine) and (hover:hover){
+  #stage{
+    inset:auto;
+    left:50%; top:50%; right:auto; bottom:auto;
+    width:min(100vw, calc(100vh * 1.883));
+    height:min(100vh, calc(100vw / 1.883));
+    transform:translate(-50%,-50%);
+    transform-origin:center;
+  }
+}
+
+/* ---- Top bar: hard-line badges ONLY (rule 3j, 20-07-2026) -------------
+   The public event surface is "her bot-match recording: controls only" —
+   no wordmark, no menu chrome. CONCEPT + the build stamp are the one
+   exception (must never be hidden, in any view — nothing may pass as a
+   real in-game screenshot), so they stay, shrunk into a plain corner row
+   instead of a full title bar. */
+#topbar{
+  position:absolute;top:0;right:0;
+  display:flex;align-items:center;gap:6px;
+  padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;
+  pointer-events:none;z-index:5;
+}
+.truth-label{display:none;}
+body.truth-patch .truth-label{
+  display:block;position:fixed;left:50%;top:8px;transform:translateX(-50%);
+  z-index:12;max-width:52vw;text-align:center;font:800 8px/1.2 'Nunito Sans',sans-serif;
+  letter-spacing:.06em;color:var(--chalk);background:rgba(20,23,43,.78);padding:4px 7px;border-radius:5px;
+}
+body.truth-patch #hint,body.truth-patch #ov-left,body.truth-patch #ov-right,body.truth-patch #status-label{display:none!important;}
+.stamp{
+  font-family:'Nunito Sans';font-weight:800;
+  font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--chalk);opacity:.5;
+  padding:3px 8px;border:1px solid rgba(246,244,239,.22);border-radius:999px;
+  white-space:nowrap;
+}
+/* Required by the art hard-lines: nothing can pass as a real in-game screenshot. */
+.concept{
+  font-family:'Nunito Sans';font-weight:800;
+  font-size:9px;letter-spacing:.16em;
+  color:var(--teal);
+  padding:3px 8px;border:1px solid rgba(53,224,208,.5);border-radius:999px;
+  background:rgba(53,224,208,.10);white-space:nowrap;
+}
+
+/* ---- In-game overlays (rule 3j) — Brawl's own grammar, not a chrome
+   chip row: a single sparse plate per corner, learned from her recording's
+   "Brawlers left: N" (position, plate, bold display type). Two plates only:
+   hiders/seekers (our "brawlers left" equivalent) and score/time (our
+   mechanic's own feedback, since Brawl has no scoring analogue to borrow —
+   given the same plate language rather than invented chrome). ------------ */
+.ov-plate{
+  position:absolute;top:calc(env(safe-area-inset-top) + 10px);
+  z-index:5;pointer-events:none;
+  background:rgba(10,12,22,.55);
+  border-radius:8px;padding:5px 10px;
+  backdrop-filter:blur(2px);
+}
+.ov-plate.hidden{opacity:0;transition:opacity .35s ease;}
+#ov-left{left:calc(env(safe-area-inset-left) + 10px);}
+/* Clears #topbar's CONCEPT/stamp badges (same corner, hard line — must
+   never be occluded), so this plate sits below them, not overlapping. */
+#ov-right{top:calc(env(safe-area-inset-top) + 38px);right:calc(env(safe-area-inset-right) + 10px);text-align:right;}
+.ov-row{display:flex;align-items:baseline;gap:5px;white-space:nowrap;}
+#ov-right .ov-row{justify-content:flex-end;}
+.ov-row b{font-family:'Lilita One',cursive;font-weight:400;font-size:18px;color:var(--chalk);letter-spacing:.02em;text-shadow:0 1px 0 rgba(0,0,0,.6);}
+.ov-lbl{font-family:'Nunito Sans';font-weight:800;font-size:10px;letter-spacing:.06em;text-transform:lowercase;color:var(--chalk);opacity:.6;}
+.ov-sub{margin-top:1px;}
+.ov-sub b{font-size:13px;opacity:.85;}
+#tk-seekrow.low b{color:var(--magenta);}            /* last seeker on the map */
+#ov-right .ov-sub.low b{color:var(--magenta);}       /* time running low */
+
+/* +100 reposition bonus flash */
+#bonus{
+  position:absolute;top:calc(env(safe-area-inset-top) + 126px);left:50%;
+  transform:translateX(-50%) translateY(6px);
+  z-index:6;pointer-events:none;opacity:0;
+  font-family:'Lilita One',cursive;font-size:26px;color:var(--yellow);
+  text-shadow:0 2px 0 var(--ink);
+}
+#bonus.show{animation:bonuspop 1.3s ease-out forwards;}
+@keyframes bonuspop{
+  0%{opacity:0;transform:translateX(-50%) translateY(10px) scale(.7);}
+  18%{opacity:1;transform:translateX(-50%) translateY(-2px) scale(1.12);}
+  60%{opacity:1;transform:translateX(-50%) translateY(-10px) scale(1);}
+  100%{opacity:0;transform:translateX(-50%) translateY(-26px) scale(1);}
+}
+
+/* Phase banner: HIDE! / SEEKER RELEASED. HUD legibility fix (PM flag,
+   18-07-2026, same class of bug as the earlier "unplated teal-on-tan"
+   status chip): a text-shadow alone doesn't hold up over the world art's
+   varied ground colour (thin on the tan floor). Same solid dark plate as
+   every other HUD readout — legibility never depends on what's rendered
+   underneath.
+   TESTED against the footage-referenced environment (v28, 20-07-2026,
+   PM directive): her own BRAWL/SHOWDOWN! banners are bare outlined text,
+   no plate, so a bare A/B was run for real before keeping this. Verdict:
+   bare loses. A thick text-stroke keeps "HIDE!" itself legible, but the
+   subtitle line straddles wall/bush/floor in the same frame and reads
+   thin wherever it crosses busy texture — our banner has to survive an
+   ARBITRARY background (any tile mix, any moment), unlike her reference
+   clips which happen to land on comparatively even ground. The plate
+   stays as a deliberate, tested exception, not an untried default —
+   screenshots: Art/2026-07-20 - v28 banner AB - plated (kept).png /
+   ...bare (rejected, subtitle illegible).png. */
+#banner{
+  position:absolute;top:32%;left:50%;transform:translate(-50%,-50%);
+  z-index:6;pointer-events:none;text-align:center;
+  padding:9px 20px 8px;border-radius:14px;
+  background:rgba(23,27,51,.72);backdrop-filter:blur(4px);
+  opacity:0;transition:opacity .3s ease;
+  max-width:80vw;
+}
+#banner.show{opacity:1;}
+/* Right-sized (PM flag, 18-07-2026 — footage-checked against how Brawl
+   scales its own event banners): the plate read oversized relative to a
+   short landscape phone's fitted arena, covering most of the play area
+   while showing. A HUD callout, not a full-screen takeover. */
+#banner .main{
+  display:block;font-family:'Lilita One',cursive;font-size:clamp(18px,4.4vw,30px);
+  color:var(--yellow);text-shadow:0 2px 0 var(--ink),0 0 16px rgba(255,200,0,.3);
+  letter-spacing:.02em;line-height:1;
+}
+#banner small{display:block;font-family:'Nunito Sans';font-weight:800;font-size:10px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--chalk);opacity:.7;margin-top:4px;}
+/* Short landscape phones (the exact case PM's frame flagged): shrink again. */
+@media (max-height:430px) and (orientation:landscape){
+  #banner{padding:7px 16px 6px;}
+  #banner .main{font-size:clamp(16px,4vw,24px);}
+  #banner small{font-size:9px;margin-top:3px;}
+}
+
+/* ---- End-of-round reveal panel ---------------------------------------- */
+#endpanel{
+  position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + 12px);
+  transform:translateX(-50%);
+  z-index:8;width:min(94vw,420px);
+  background:rgba(20,23,43,.94);
+  border:1px solid rgba(246,244,239,.16);border-radius:16px;
+  padding:14px 16px 12px;text-align:center;
+  backdrop-filter:blur(6px);
+  box-shadow:0 18px 50px rgba(0,0,0,.5);
+}
+#end-title{font-family:'Lilita One',cursive;font-size:30px;line-height:1;letter-spacing:.02em;}
+#end-title.spotted{color:var(--magenta);}
+#end-title.safe{color:var(--teal);}
+#end-sub{font-size:12.5px;color:var(--chalk);opacity:.85;margin:6px 0 10px;}
+#end-sub b{color:var(--yellow);font-weight:800;}
+#end-board{list-style:none;margin:0 0 10px;padding:0;max-height:32vh;overflow-y:auto;}
+#end-board li{
+  display:grid;grid-template-columns:16px 12px 1fr auto auto;align-items:center;gap:7px;
+  padding:4px 6px;border-radius:7px;font-size:12px;
+}
+#end-board li.me{background:rgba(255,200,0,.12);outline:1px solid rgba(255,200,0,.3);}
+#end-board .rank{opacity:.5;font-variant-numeric:tabular-nums;}
+#end-board .dot{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--ink);}
+#end-board .nm{font-family:'Lilita One',cursive;text-align:left;letter-spacing:.03em;}
+#end-board .st{opacity:.6;font-size:10.5px;}
+#end-board .sc{font-family:'Lilita One',cursive;color:var(--yellow);min-width:44px;text-align:right;}
+#replay{
+  font-family:'Lilita One',cursive;font-size:17px;letter-spacing:.03em;
+  color:var(--ink);background:var(--yellow);
+  border:none;border-radius:11px;padding:9px 26px;cursor:pointer;
+  box-shadow:0 4px 0 #C89A00;
+}
+#replay:active{transform:translateY(2px);box-shadow:0 2px 0 #C89A00;}
+.fanpolicy{font-size:9.5px;line-height:1.35;color:var(--chalk);opacity:.45;margin-top:9px;}
+.fanpolicy a{color:inherit;}
+
+@media (max-width:430px){
+  .ov-plate{padding:4px 8px;}
+  .ov-row b{font-size:15px;}
+  .ov-lbl{font-size:8px;}
+  .ov-sub b{font-size:11px;}
+}
+
+/* ---- Bottom hint ----------------------------------------------------- */
+#hint{
+  position:absolute;left:50%;transform:translateX(-50%);
+  bottom:calc(env(safe-area-inset-bottom) + 14px);
+  z-index:5;pointer-events:none;
+  max-width:min(92vw,560px);text-align:center;
+  font-size:clamp(12px,3.2vw,15px);line-height:1.35;
+  color:var(--chalk);
+  background:rgba(23,27,51,.72);
+  border:1px solid rgba(246,244,239,.12);
+  border-radius:14px;
+  padding:9px 16px;
+  backdrop-filter:blur(3px);
+  transition:opacity .5s ease;
+}
+#hint b{color:var(--yellow);font-weight:800;}
+#hint .paint{color:var(--magenta);font-weight:800;}
+#hint.dim{opacity:0;}
+/* Short landscape phones (the joystick's fixed base sits low-left here,
+   src/input.js): lift + narrow the hint so its box clears the ring's
+   bottom edge instead of dipping under it. */
+@media (max-height:430px) and (orientation:landscape){
+  #hint{bottom:calc(env(safe-area-inset-bottom) + 40px);max-width:min(76vw,480px);}
+}
+
+/* ---- Bottom-right badge: controls only (rule 3k, 20-07-2026) ---------
+   Camo-badge idea is DEAD — Tessa's ruling: "no one looks at their control
+   buttons when they play, it's all muscle memory." Camo state now reads
+   ON THE BRAWLER (paint fill + FX.youAreHere pulse, see render.js/fx.js),
+   never here. This slot sits where Brawl's own attack/Super button lives
+   and is CONTROLS ONLY: the empty/disabled attack slot for a hider (no
+   icon, no ring fill, no label — matching what her footage shows for a
+   brawler with nothing to fire), and becomes the real Tag fire button once
+   M5 adds the playable seeker. The Map Maker sandbox (below) keeps its own
+   state-chip behaviour — it's a debug teaching tool, not real gameplay chrome. */
+#status{
+  position:absolute;right:calc(env(safe-area-inset-right) + 22px);
+  bottom:calc(env(safe-area-inset-bottom) + 22px);
+  width:64px;height:64px;border-radius:50%;
+  z-index:6;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(23,27,51,.55);
+  border:2.5px solid rgba(246,244,239,.14);
+  opacity:.5;transition:opacity .35s ease, border-color .35s ease, box-shadow .35s ease;
+}
+#status.visible{opacity:1;}
+#status.disabled{background:rgba(23,27,51,.4);border-color:rgba(246,244,239,.1);box-shadow:none;}
+#status.disabled #status-icon{display:none;}
+#status-icon{font-size:22px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.5));}
+img#status-icon{width:26px;height:26px;object-fit:contain;font-size:0;}
+/* Map Maker sandbox state chip only (STATE.view === 'maker') */
+#status.hiding{--ring:var(--magenta);background:conic-gradient(var(--ring) calc(var(--p,0)*360deg), transparent 0),rgba(23,27,51,.82);border-color:rgba(255,79,160,.6);}
+#status.hidden{--ring:var(--teal);background:conic-gradient(var(--ring) calc(var(--p,0)*360deg), transparent 0),rgba(23,27,51,.82);border-color:rgba(53,224,208,.7);box-shadow:0 0 0 4px rgba(53,224,208,.16),0 6px 18px rgba(0,0,0,.4);}
+#status.exposed{--ring:var(--yellow);background:conic-gradient(var(--ring) calc(var(--p,0)*360deg), transparent 0),rgba(23,27,51,.82);border-color:rgba(255,200,0,.6);}
+#status.nocamo{--ring:var(--magenta);background:conic-gradient(var(--ring) calc(var(--p,0)*360deg), transparent 0),rgba(23,27,51,.82);border-color:rgba(255,79,160,.6);}
+
+#status-label{
+  position:absolute;right:calc(env(safe-area-inset-right) + 22px);
+  bottom:calc(env(safe-area-inset-bottom) + 90px);
+  z-index:6;pointer-events:none;text-align:right;
+  font-family:'Lilita One',cursive;font-size:13px;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--chalk);
+  text-shadow:0 2px 6px rgba(0,0,0,.6);
+  opacity:0;transition:opacity .35s ease;
+  max-width:150px;
+}
+#status-label:not(:empty){opacity:1;}
+
+/* ---- Disclaimer (Fan Content Policy safety, on everything) ------------ */
+.disclaimer{
+  position:absolute;left:0;right:0;
+  bottom:calc(env(safe-area-inset-bottom) + 3px);
+  text-align:center;z-index:4;pointer-events:none;
+  font-size:10px;letter-spacing:.02em;color:var(--chalk);opacity:.32;
+}
+.disclaimer a{color:inherit;}
+
+@media (max-width:520px){
+  /* keep the disclaimer from colliding with the hint on short screens */
+  .disclaimer{font-size:9px;}
+}
+@media (prefers-reduced-motion:reduce){
+  #hint,#status{transition:none;}
+}
+
+/* Desktop: dock the summary beside the map — the reveal map IS the shareable
+   artefact, so the panel must not sit on top of the hiding spots. */
+@media (min-width:900px){
+  #endpanel{
+    left:auto;right:26px;bottom:auto;top:50%;
+    transform:translateY(-50%);
+    width:360px;max-height:86vh;overflow-y:auto;
+  }
+  #end-board{max-height:none;}
+}
+
+@media (min-width:700px) and (max-width:899px) and (orientation:landscape){
+  #endpanel{left:auto;right:8px;bottom:8px;top:44px;transform:none;width:292px;max-height:none;overflow:hidden;padding:10px 12px;border-radius:12px;}
+  #end-title{font-size:22px;margin:0 0 2px;}
+  #end-sub{font-size:10px;margin:3px 0 5px;}
+  #end-board{max-height:none;margin-bottom:5px;}
+  #end-board li{gap:4px;padding:2px 3px;font-size:9px;}
+  #end-board .st{font-size:8px;}
+  #end-board .sc{min-width:30px;}
+  #replay{font-size:13px;padding:5px 14px;}
+}
+
+/* ======================================================================
+   MAP MAKER — the editor frame. This is the pitch's money shot, so it must
+   read as a real properties inspector, not a row of debug switches.
+   ====================================================================== */
+
+/* Entry pill — debug-only (rule 3j, 20-07-2026): the tuning sandbox is off
+   the public event surface entirely now; this pill only exists behind
+   ?debug=1/?maker=1 (src/maker.js toggles its display). Sits just under the
+   corner badges, well clear of the in-game overlay plates. Its own teal
+   accent keeps it visibly OUR tool, distinct from any Brawl control. */
+#mk-open{
+  position:absolute;top:calc(env(safe-area-inset-top) + 84px);right:10px;
+  z-index:5;
+  display:flex;align-items:center;gap:5px;
+  font-family:'Lilita One',cursive;font-size:11px;letter-spacing:.03em;
+  color:var(--ink);background:var(--teal);
+  border:none;border-radius:999px;padding:5px 11px;cursor:pointer;
+  box-shadow:0 3px 0 #1FA79A;
+}
+#mk-open svg{flex:none;}
+#mk-open:active{transform:translateY(2px);box-shadow:0 1px 0 #1FA79A;}
+body.maker #mk-open{display:none;}
+@media (max-width:480px){ #mk-open span{display:none;} #mk-open{padding:6px 8px;} }
+
+/* Hide the event HUD while editing */
+body.maker #ov-left, body.maker #ov-right, body.maker #hint, body.maker #banner,
+body.maker #bonus, body.maker #endpanel{display:none !important;}
+
+/* ---- the panel ------------------------------------------------------- */
+#makerpanel{display:none;}
+body.maker #makerpanel{
+  display:flex;flex-direction:column;gap:12px;
+  position:absolute;z-index:8;
+  background:linear-gradient(180deg, rgba(26,30,56,.97), rgba(18,21,42,.97));
+  border:1px solid rgba(246,244,239,.14);
+  box-shadow:0 -14px 40px rgba(0,0,0,.45);
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+}
+/* Landscape: docked right rail, like an inspector — the horizontal room
+   landscape gives you. PM fit fix (18-07-2026): was a raw min-width:860px
+   breakpoint, which a narrow LANDSCAPE phone (844x390) fell under and got
+   the portrait sheet instead, eating ~60% of its height for a postage-
+   stamp arena. Real devices only ever reach this view in landscape (the
+   rotate-prompt blocks portrait), so orientation is the correct axis. */
+@media (orientation:landscape){
+  body.maker #makerpanel{
+    top:0;right:0;bottom:0;width:340px;
+    border-left:1px solid rgba(53,224,208,.22);border-radius:0;
+    padding:calc(env(safe-area-inset-top) + 16px) 18px 18px;
+  }
+}
+/* Portrait: bottom sheet (unreachable in real play — the rotate-prompt
+   already covers the whole screen there — kept for narrow-viewport tooling
+   and as the honest fallback if that guard is ever bypassed). */
+@media (orientation:portrait){
+  body.maker #makerpanel{
+    left:0;right:0;bottom:0;
+    max-height:46vh;
+    border-radius:18px 18px 0 0;
+    border-top:1px solid rgba(53,224,208,.28);
+    padding:12px 14px calc(env(safe-area-inset-bottom) + 12px);
+  }
+}
+
+.mk-head{display:flex;align-items:center;gap:10px;}
+.mk-title{font-family:'Lilita One',cursive;font-size:19px;color:var(--chalk);letter-spacing:.06em;flex:1;}
+.mk-back{
+  font-family:'Nunito Sans';font-weight:800;font-size:11px;letter-spacing:.08em;
+  color:var(--chalk);background:rgba(246,244,239,.08);
+  border:1px solid rgba(246,244,239,.18);border-radius:8px;padding:5px 9px;cursor:pointer;
+}
+.mk-back:active{background:rgba(246,244,239,.16);}
+.mk-live{
+  font-family:'Nunito Sans';font-weight:800;font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--teal);border:1px solid rgba(53,224,208,.5);background:rgba(53,224,208,.12);
+  border-radius:999px;padding:3px 8px;
+}
+.mk-map{font-size:11px;color:var(--chalk);opacity:.55;margin-top:-4px;}
+.mk-map b{color:var(--yellow);opacity:.95;font-weight:800;}
+
+.mk-group{
+  background:rgba(10,13,28,.5);border:1px solid rgba(246,244,239,.08);
+  border-radius:12px;padding:11px 12px;
+}
+.mk-group h4{
+  font-family:'Nunito Sans';font-weight:800;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--chalk);opacity:.75;margin-bottom:3px;
+}
+.mk-hint{font-size:11px;line-height:1.35;color:var(--chalk);opacity:.45;margin-bottom:9px;}
+.mk-row{display:flex;align-items:center;gap:12px;}
+.mk-rowtext{flex:1;}
+.mk-row .mk-hint{margin-bottom:0;}
+
+/* surface chips */
+.mk-surfaces{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.mk-surf{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  background:rgba(246,244,239,.05);
+  border:1.5px solid rgba(246,244,239,.14);border-radius:10px;
+  padding:9px 4px 8px;cursor:pointer;transition:border-color .15s, background .15s;
+}
+.mk-surf i{
+  width:100%;height:22px;border-radius:6px;background:var(--sw);
+  border:1.5px solid rgba(20,23,43,.75);opacity:.45;transition:opacity .15s;
+}
+.mk-surf span{font-family:'Lilita One',cursive;font-size:12px;color:var(--chalk);opacity:.55;letter-spacing:.03em;}
+.mk-surf.on{border-color:var(--teal);background:rgba(53,224,208,.10);}
+.mk-surf.on i{opacity:1;box-shadow:0 0 0 1.5px rgba(53,224,208,.55);}
+.mk-surf.on span{opacity:1;color:var(--teal);}
+/* Per-surface tile-count hint (PM directive, 18-07-2026) — a small, honest
+   readout under the label; a "0" (this map has none of this surface) is
+   dimmer rather than alarming, since it's expected map-to-map variance,
+   not an error. */
+.mk-count{font-family:'Nunito Sans';font-weight:800;font-size:8.5px;letter-spacing:.03em;color:var(--chalk);opacity:.4;}
+.mk-count.zero{opacity:.28;font-style:italic;}
+.mk-surf.on .mk-count{opacity:.7;}
+.mk-surf.on .mk-count.zero{opacity:.4;}
+
+.mk-warn{
+  margin-top:9px;font-size:10.5px;line-height:1.35;
+  color:var(--magenta);background:rgba(255,79,160,.1);
+  border:1px solid rgba(255,79,160,.35);border-radius:8px;padding:6px 8px;
+}
+
+/* segmented control */
+.mk-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;
+  background:rgba(10,13,28,.7);border:1px solid rgba(246,244,239,.10);border-radius:10px;padding:3px;}
+.mk-seg button{
+  font-family:'Lilita One',cursive;font-size:13px;letter-spacing:.02em;
+  color:var(--chalk);opacity:.55;background:transparent;border:none;border-radius:7px;
+  padding:7px 0;cursor:pointer;transition:background .15s,color .15s,opacity .15s;
+}
+.mk-seg button.on{background:var(--yellow);color:var(--ink);opacity:1;box-shadow:0 2px 0 #C89A00;}
+
+/* switch */
+.mk-switch{
+  flex:none;width:48px;height:28px;border-radius:999px;cursor:pointer;
+  background:rgba(246,244,239,.14);border:1px solid rgba(246,244,239,.18);
+  position:relative;transition:background .18s,border-color .18s;
+}
+.mk-switch span{
+  position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;
+  background:var(--chalk);transition:transform .18s;box-shadow:0 1px 3px rgba(0,0,0,.4);
+}
+.mk-switch.on{background:rgba(53,224,208,.30);border-color:var(--teal);}
+.mk-switch.on span{transform:translateX(20px);background:var(--teal);}
+
+.mk-foot{display:flex;flex-direction:column;gap:7px;}
+.mk-reset{
+  align-self:flex-start;
+  font-family:'Nunito Sans';font-weight:800;font-size:10.5px;letter-spacing:.06em;
+  color:var(--chalk);opacity:.6;background:none;border:none;cursor:pointer;
+  text-decoration:underline;text-underline-offset:3px;padding:0;
+}
+.mk-reset:active{opacity:1;}
+.mk-note{font-size:10px;line-height:1.4;color:var(--chalk);opacity:.4;}
+
+/* TAGGED! toast in the sandbox */
+#mk-toast{
+  position:absolute;left:50%;top:24%;transform:translate(-50%,-50%) scale(.85);
+  z-index:9;pointer-events:none;opacity:0;
+  font-family:'Lilita One',cursive;font-size:clamp(24px,6vw,40px);
+  color:var(--yellow);background:var(--magenta);
+  border:3px solid var(--ink);border-radius:12px;padding:6px 20px;
+  transition:opacity .18s ease, transform .18s ease;
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+}
+#mk-toast.show{opacity:1;transform:translate(-50%,-50%) rotate(-8deg) scale(1);}
+
+/* "no camo surface here" state for the status chip */
+#status.nocamo{color:var(--magenta);border:1px solid rgba(255,79,160,.55);}   /* solid plate inherited from #status */
+
+/* --- Map Maker layout corrections ------------------------------------- */
+/* The CONCEPT badge is a hard line: it must never be occluded, in any view.
+   Pull the top bar clear of the right rail, and centre the floating chips over
+   the PLAY AREA rather than the whole viewport. */
+@media (orientation:landscape){
+  body.maker #topbar{right:340px;}
+  body.maker #mk-toast{left:calc(50% - 170px);}
+  /* the badge stays bottom-right of the PLAY area, clear of the right rail */
+  body.maker #status{right:calc(340px + 22px);}
+  body.maker #status-label{right:calc(340px + 22px);}
+}
+/* Portrait: lift the badge + its label clear of the bottom sheet (see the
+   sheet's own note above — unreachable in real play, kept as the honest
+   fallback). */
+@media (orientation:portrait){
+  body.maker #status{bottom:calc(46vh + 16px);}
+  body.maker #status-label{bottom:calc(46vh + 84px);}
+}
+
+/* Interactive chrome must be able to receive touches and scroll: the stage sets
+   touch-action:none for the joystick, so re-enable it where the UI lives. */
+#makerpanel, #endpanel{touch-action:pan-y;}
+#mk-open, #replay, #mk-back, #mk-reset, .mk-surf, .mk-seg button, .mk-switch{touch-action:manipulation;}
+
+/* ======================================================================
+   M4 — full prefers-reduced-motion pass. Kill DECORATIVE motion (bounces,
+   scale-pops, the knob slide); keep opacity fades (not "motion") and the paint
+   fill itself (that's the mechanic, not decoration — its wobble/drips are
+   already gated in render.js, and FX bursts/ripples in fx.js).
+   ====================================================================== */
+@media (prefers-reduced-motion: reduce){
+  /* +100 reposition: opacity-only fade, no translate-y/scale bounce */
+  #bonus.show{animation:bonusfade 1.1s ease-out forwards;}
+  /* TAGGED! toast: keep the brand tilt, drop the scale-pop transition */
+  #mk-toast{transition:opacity .12s ease;}
+  #mk-toast.show{transform:translate(-50%,-50%) rotate(-8deg);}
+  /* the switch knob snaps instead of sliding */
+  .mk-switch span, .mk-surf, .mk-seg button, #replay{transition:none;}
+}
+@keyframes bonusfade{0%,100%{opacity:0}18%,82%{opacity:1}}
+
+/* ---- TEMPORARY M4 pace picker (gate control; removed once baked) ------ */
+#pace{
+  position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + 100px);
+  transform:translateX(-50%);z-index:6;
+  display:flex;align-items:center;gap:8px;
+  background:rgba(23,27,51,.82);border:1px solid rgba(246,244,239,.16);
+  border-radius:12px;padding:5px 9px;backdrop-filter:blur(3px);
+}
+#pace .lbl{
+  font-family:'Nunito Sans';font-weight:800;font-size:9px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--chalk);opacity:.55;
+}
+#pace .mk-seg{margin:0;min-width:132px;}
+#pace .mk-seg button{padding:6px 0;font-size:13px;}
+#pace.hidden{opacity:0;pointer-events:none;transition:opacity .3s ease;}
+body.maker #pace{display:none;}                 /* Event view only */
+#pace button{touch-action:manipulation;}

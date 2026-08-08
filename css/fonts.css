@@ -1,0 +1,11 @@
+/* Self-hosted fonts (latin subset, woff2, SIL OFL) — downloaded once from
+ * Google Fonts and served locally so the prototype has zero external runtime
+ * dependencies and works from file://. Visual system v1.0:
+ *   display  = Lilita One  (the Brawl-brand display face)
+ *   body     = Nunito Sans
+ *   accent   = Caveat       (hand annotations)
+ */
+@font-face{font-family:'Lilita One';font-style:normal;font-weight:400;font-display:swap;src:url('../assets/fonts/LilitaOne-400.woff2') format('woff2');}
+@font-face{font-family:'Nunito Sans';font-style:normal;font-weight:400;font-display:swap;src:url('../assets/fonts/NunitoSans-400.woff2') format('woff2');}
+@font-face{font-family:'Nunito Sans';font-style:normal;font-weight:800;font-display:swap;src:url('../assets/fonts/NunitoSans-800.woff2') format('woff2');}
+@font-face{font-family:'Caveat';font-style:normal;font-weight:700;font-display:swap;src:url('../assets/fonts/Caveat-700.woff2') format('woff2');}
