@@ -1,19 +1,17 @@
-/* Brawl & Seek — on-screen debug overlay, toggled by ?debug=1. This is the
- * ground-truth instrument: a device recording with this on tells us exactly what
- * the touch path and the movement code are doing, frame by frame. Nothing here
- * changes gameplay — it only reads and draws.
- *
- * Shows: every raw active touch point (where iOS thinks your fingers are), the
- * stick anchor + current vector, intended vs actually-applied velocity, which
- * axes collision blocked this frame, and the iOS gotchas — preventDefault
- * success, touch-action, visualViewport offset (Safari toolbar show/hide), and
- * the selected arena bundle identity. */
+/* Brawl & Seek â€” on-screen debug overlay, toggled by ?debug=1 or the
+ * build-stamp triple-tap in standalone. This is the ground-truth capture
+ * instrument: it must report what happened, never reshape gameplay.
+ */
 (function () {
   let svg, panel, on = false, lastT = 0, fps = 0;
   const SV = 'http://www.w3.org/2000/svg';
 
   function init() {
+    if (on) return;
     on = true;
+    lastT = 0;
+    fps = 0;
+
     svg = document.createElementNS(SV, 'svg');
     Object.assign(svg.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', zIndex: '20', pointerEvents: 'none' });
     document.body.appendChild(svg);
@@ -29,13 +27,25 @@
     document.body.appendChild(panel);
   }
 
+  function destroy() {
+    if (!on) return;
+    on = false;
+    lastT = 0;
+    if (svg) svg.remove();
+    if (panel) panel.remove();
+    svg = null;
+    panel = null;
+  }
+
+  function toggle() { if (on) destroy(); else init(); }
+
   function n(v) { return (v < 0 ? '' : ' ') + v.toFixed(0); }
   function f2(v) { return (v < 0 ? '' : ' ') + v.toFixed(2); }
   function safeCssPx(cs, name) { const n = parseFloat(cs.getPropertyValue(name)); return Number.isFinite(n) ? Math.round(n) : 0; }
   function docViewport() { return document.documentElement; }
 
   function frame() {
-    if (!on) return;
+    if (!on || !svg || !panel) return;
     const now = performance.now();
     if (lastT) fps = Math.round(0.85 * fps + 0.15 * (1000 / Math.max(1, now - lastT)));
     lastT = now;
@@ -56,6 +66,8 @@
     };
     const fit = (window.Game && typeof Game.fitInfo === 'function') ? Game.fitInfo() : null;
     const rect = d.geometry ? d.geometry.rect : null;
+    const fitMode = fit && fit.active ? (fit.standalone ? 'standalone' : 'tab') : 'inactive';
+    const fitSource = fit && fit.source ? fit.source : 'n/a';
 
     // ---- SVG layer ----
     let g = '';
@@ -82,12 +94,12 @@
 
     // ---- text panel ----
     const ta = (() => { const el = document.getElementById('stage'); return el ? getComputedStyle(el).touchAction : '?'; })();
-    const touchList = d.touches.map((t) => `#${t.id}(${t.x.toFixed(0)},${t.y.toFixed(0)})`).join(' ') || '—';
+    const touchList = d.touches.map((t) => `#${t.id}(${t.x.toFixed(0)},${t.y.toFixed(0)})`).join(' ') || 'â€”';
     panel.textContent = [
       `DEBUG  mode:${d.mode}   fps:${fps}`,
       `ARENA BUNDLE: ${bundleKind}  name:${bundleName}  isBlockout:${bundleIsBlockout}`,
       `touches(${d.touches.length}): ${touchList}`,
-      `anchor: ${d.anchor ? `(${d.anchor.x.toFixed(0)},${d.anchor.y.toFixed(0)})` : '—'}  cur: ${d.cur ? `(${d.cur.x.toFixed(0)},${d.cur.y.toFixed(0)})` : '—'}`,
+      `anchor: ${d.anchor ? `(${d.anchor.x.toFixed(0)},${d.anchor.y.toFixed(0)})` : 'â€”'}  cur: ${d.cur ? `(${d.cur.x.toFixed(0)},${d.cur.y.toFixed(0)})` : 'â€”'}`,
       `stick vec: (${f2(d.vec.x)},${f2(d.vec.y)})  mag ${d.mag.toFixed(2)}`,
       `intended v: (${n(pd.tvx)},${n(pd.tvy)}) px/s`,
       `applied  v: (${n(pd.vx)},${n(pd.vy)}) px/s`,
@@ -95,17 +107,17 @@
       `player: hidden:${Player.hidden} prog ${Player.progress.toFixed(2)} still ${Player.still.toFixed(1)}s found:${Player.found}`,
       `round: ${Round.phase} t=${Round.elapsed.toFixed(1)}s left=${Round.timeLeft().toFixed(0)}s repaint=${Round.repaintTime().toFixed(1)}s`,
       `score: ${Math.round(Round.score)} rate ${Round.rate.toFixed(1)}/s camp ${Round.camp.toFixed(1)}s  found ${Round.foundCount} alive ${Round.hidersAlive()}`,
-      `seekers(${Seekers.active().length}) spd ${Seekers.speedOf().toFixed(2)}: ${Seekers.list.map((s) => `${s.state}/hp${Math.max(0, s.health)}/m${s.mistakes}`).join(' ') || '—'}`,
-      `tags in flight: ${Tags.list.length}  cd: ${Seekers.list.map((s) => Math.max(0, s.tagCd).toFixed(2)).join(' ') || '—'}`,
+      `seekers(${Seekers.active().length}) spd ${Seekers.speedOf().toFixed(2)}: ${Seekers.list.map((s) => `${s.state}/hp${Math.max(0, s.health)}/m${s.mistakes}`).join(' ') || 'â€”'}`,
+      `tags in flight: ${Tags.list.length}  cd: ${Seekers.list.map((s) => Math.max(0, s.tagCd).toFixed(2)).join(' ') || 'â€”'}`,
       `view: ${STATE.view}  surfaces: ${Object.entries(STATE.camoSurfaces).filter(([, v]) => v).map(([k]) => k).join('+') || 'none'}  repaint ${STATE.repaintTime}s  tell:${STATE.rippleTell ? 'on' : 'off'}`,
-      `speed x${STATE.speedScale.toFixed(2)}  (player ${(CFG.playerSpeed * STATE.speedScale).toFixed(2)} · seeker ${Seekers.speedOf().toFixed(2)} · tag ${(TUNING.seeker.baseSpeed * TUNING.tag.speedMult * STATE.speedScale).toFixed(2)} tiles/s)`,
+      `speed x${STATE.speedScale.toFixed(2)}  (player ${(CFG.playerSpeed * STATE.speedScale).toFixed(2)} Â· seeker ${Seekers.speedOf().toFixed(2)} Â· tag ${(TUNING.seeker.baseSpeed * TUNING.tag.speedMult * STATE.speedScale).toFixed(2)} tiles/s)`,
       `pd:${d.pdOk ? 'ok' : 'NO'}  last:${d.lastType}  evts:${d.evtCount}`,
-      `rotation: ${d.rotation ? 'mobile-portrait' : 'upright'}  stage: ${d.geometry ? d.geometry.width.toFixed(0) + '×' + d.geometry.height.toFixed(0) + ' rect(' + d.geometry.rect.left.toFixed(0) + ',' + d.geometry.rect.top.toFixed(0) + '→' + d.geometry.rect.right.toFixed(0) + ',' + d.geometry.rect.bottom.toFixed(0) + ')' : '?'}`,
-      `FIT: rot:${d.rotation ? 'on' : 'off'} innerW/H:${innerWidth}x${innerHeight} docW/H:${doc.clientWidth}x${doc.clientHeight} vvW/H:${vv ? `${Math.round(vv.width)}x${Math.round(vv.height)}@${Math.round(vv.offsetTop)}` : 'n/a'} screen:${screen.width}x${screen.height} rect:${rect ? `${Math.round(rect.left)},${Math.round(rect.top)} ${Math.round(rect.width)}x${Math.round(rect.height)}` : 'n/a'} axes:${fit && fit.active ? `${fit.longAxis}x${fit.shortAxis}` : 'inactive'} safe(T,R,B,L):${safe.top}/${safe.right}/${safe.bottom}/${safe.left}`,
+      `rotation: ${d.rotation ? 'mobile-portrait' : 'upright'}  stage: ${d.geometry ? d.geometry.width.toFixed(0) + 'Ã—' + d.geometry.height.toFixed(0) + ' rect(' + d.geometry.rect.left.toFixed(0) + ',' + d.geometry.rect.top.toFixed(0) + 'â†’' + d.geometry.rect.right.toFixed(0) + ',' + d.geometry.rect.bottom.toFixed(0) + ')' : '?'}`,
+      `FIT: mode:${fitMode} src:${fitSource} rot:${d.rotation ? 'on' : 'off'} innerW/H:${innerWidth}x${innerHeight} docW/H:${doc.clientWidth}x${doc.clientHeight} vvW/H:${vv ? `${Math.round(vv.width)}x${Math.round(vv.height)}@${Math.round(vv.offsetTop)}` : 'n/a'} screen:${screen.width}x${screen.height} rect:${rect ? `${Math.round(rect.left)},${Math.round(rect.top)} ${Math.round(rect.width)}x${Math.round(rect.height)}` : 'n/a'} axes:${fit && fit.active ? `${fit.longAxis}x${fit.shortAxis}` : 'inactive'} safe(T,R,B,L):${safe.top}/${safe.right}/${safe.bottom}/${safe.left}`,
       `vv: off(${vv ? vv.offsetLeft.toFixed(0) + ',' + vv.offsetTop.toFixed(0) : '?'}) h ${vv ? vv.height.toFixed(0) : '?'} / inner ${innerHeight}  dpr ${window.devicePixelRatio}`,
       `touch-action(stage): ${ta}`,
     ].join('\n');
   }
 
-  window.Debug = { init, frame, get on() { return on; } };
+  window.Debug = { init, destroy, toggle, frame, get on() { return on; } };
 })();

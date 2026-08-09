@@ -89,9 +89,10 @@ body{
   position:absolute;top:0;right:0;
   display:flex;align-items:center;gap:6px;
   padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;
-  pointer-events:none;z-index:5;
+  pointer-events:auto;z-index:5;
 }
 .truth-label{display:none;}
+.concept,.truth-label{pointer-events:none;}
 body.truth-patch .truth-label{
   display:block;position:fixed;left:50%;top:8px;transform:translateX(-50%);
   z-index:12;max-width:52vw;text-align:center;font:800 8px/1.2 'Nunito Sans',sans-serif;
@@ -103,6 +104,8 @@ body.truth-patch #hint,body.truth-patch #ov-left,body.truth-patch #ov-right,body
   font-size:10px;letter-spacing:.14em;text-transform:uppercase;
   color:var(--chalk);opacity:.5;
   padding:3px 8px;border:1px solid rgba(246,244,239,.22);border-radius:999px;
+  pointer-events:auto;
+  touch-action:manipulation;
   white-space:nowrap;
 }
 /* Required by the art hard-lines: nothing can pass as a real in-game screenshot. */

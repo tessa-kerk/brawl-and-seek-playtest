@@ -163,7 +163,7 @@
    * the browser synthesising a click, which silently kills every button on a
    * phone. Those touches are also excluded from the thumb-stick. */
   const uiIds = new Set();
-  const UI_SEL = 'button, a, input, select, label, #makerpanel, #endpanel';
+  const UI_SEL = 'button, a, input, select, label, #makerpanel, #endpanel, #topbar, #topbar *';
   const isUI = (el) => !!(el && el.closest && el.closest(UI_SEL));
 
   // ---- the one handler, rebuilt from event.touches ----------------------

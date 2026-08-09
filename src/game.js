@@ -38,10 +38,89 @@
   let last = 0, tSec = 0, renderSerial = 0;
   let elHint, elStatus, elStatusLabel, elBanner, elBonus, elOvLeft, elOvRight, elPace;
   let fit = { active: false };
+  let safeAreaProbe = null;
+  const STAMP_TRIPLE_TAP_MS = 900;
   let lastPhase = 'hide', bannerT = 0, bonusArmed = false, lastDt = 0.016;
 
   function isPortraitRotateStage() {
     return matchMedia('(orientation: portrait) and (pointer: coarse) and (hover: none)').matches;
+  }
+
+  function isStandaloneMode() {
+    const displayModeStandalone = matchMedia('(display-mode: standalone)').matches;
+    return displayModeStandalone || !!(navigator.standalone);
+  }
+
+  function toPx(v) {
+    const n = parseFloat(v);
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+  }
+
+  function getSafeAreaProbe() {
+    if (safeAreaProbe) return safeAreaProbe;
+    const p = document.createElement('div');
+    Object.assign(p.style, {
+      position: 'fixed',
+      left: '0',
+      top: '0',
+      width: '1px',
+      height: '1px',
+      paddingTop: 'env(safe-area-inset-top)',
+      paddingRight: 'env(safe-area-inset-right)',
+      paddingBottom: 'env(safe-area-inset-bottom)',
+      paddingLeft: 'env(safe-area-inset-left)',
+      pointerEvents: 'none',
+      visibility: 'hidden',
+      zIndex: '-1',
+    });
+    safeAreaProbe = p;
+    (document.body || document.documentElement).appendChild(p);
+    return p;
+  }
+
+  function readSafeAreaInsetsFromProbe() {
+    const probe = getSafeAreaProbe();
+    const cs = getComputedStyle(probe);
+    const top = toPx(cs.paddingTop);
+    const right = toPx(cs.paddingRight);
+    const bottom = toPx(cs.paddingBottom);
+    const left = toPx(cs.paddingLeft);
+
+    const root = document.documentElement;
+    root.style.setProperty('--safe-top', `${top}px`);
+    root.style.setProperty('--safe-right', `${right}px`);
+    root.style.setProperty('--safe-bottom', `${bottom}px`);
+    root.style.setProperty('--safe-left', `${left}px`);
+
+    return { top, right, bottom, left, sumV: top + bottom };
+  }
+
+  function fitAxisForRotatedStandlone(clientW, clientH) {
+    const standalone = isStandaloneMode();
+    const baseLong = Math.max(clientW, clientH);
+    const insets = readSafeAreaInsetsFromProbe();
+    const insetSumV = insets.sumV;
+    const useInsetLayout = standalone && insetSumV > 0;
+    const shortAxis = Math.min(clientW, clientH);
+
+    let longAxis = baseLong;
+    let source = 'layout';
+    if (standalone && !useInsetLayout) {
+      const screenH = Math.max(0, Math.round(screen.height));
+      longAxis = screenH > 0 ? screenH : baseLong;
+      source = 'screenH';
+    }
+    if (standalone && useInsetLayout) longAxis = baseLong + insetSumV;
+
+    return {
+      longAxis: Math.max(1, longAxis),
+      shortAxis: Math.max(1, shortAxis),
+      source,
+      mode: standalone ? 'standalone' : 'tab',
+      safeInsets: insets,
+      standalone: standalone,
+      sourceInsetV: insetSumV,
+    };
   }
 
   function fitRotatedPortraitStage() {
@@ -58,8 +137,9 @@
     const doc = document.documentElement;
     const clientW = Math.max(0, Math.round(doc.clientWidth));
     const clientH = Math.max(0, Math.round(doc.clientHeight));
-    const longAxis = Math.max(clientW, clientH);
-    const shortAxis = Math.min(clientW, clientH);
+    const size = fitAxisForRotatedStandlone(clientW, clientH);
+    const longAxis = size.longAxis;
+    const shortAxis = size.shortAxis;
 
     stage.style.width = `${longAxis}px`;
     stage.style.height = `${shortAxis}px`;
@@ -69,11 +149,42 @@
     fit = {
       active: true,
       viewport: { clientW, clientH },
+      safeInsets: size.safeInsets,
+      source: size.source,
+      standalone: size.standalone,
+      mode: size.mode,
+      sourceInsetV: size.sourceInsetV,
       longAxis,
       shortAxis,
       vv: vv ? { w: Math.round(vv.width), h: Math.round(vv.height), offsetTop: Math.round(vv.offsetTop) } : null,
       style: { width: `${longAxis}px`, height: `${shortAxis}px` },
     };
+  }
+
+  function toggleDebugFromStamp() {
+    if (!window.Debug) return;
+    if (typeof Debug.toggle === 'function') {
+      Debug.toggle();
+      return;
+    }
+    Debug.init();
+  }
+
+  function bindStampTapToggle(stampEl) {
+    // Triple-tap (3 taps within 900ms) on the build-stamp element toggles debug.
+    // This gives us overlay access in installed homescreen mode where URL editing
+    // is not practical on-device.
+    let stampTaps = [];
+    const onStampTap = () => {
+      const now = performance.now();
+      stampTaps = stampTaps.filter((t) => now - t <= STAMP_TRIPLE_TAP_MS);
+      stampTaps.push(now);
+      if (stampTaps.length >= 3) {
+        stampTaps = [];
+        toggleDebugFromStamp();
+      }
+    };
+    stampEl.addEventListener('pointerdown', onStampTap);
   }
 
   function resize() {
@@ -387,6 +498,7 @@
     const cleanText = { '#mk-back': '< Event', '.mk-map': 'Fresh Paint - 50 x 27 - camouflage properties', '#mk-warn': 'No surface camouflages - nobody can hide on this map.', '.mk-note': 'Changes apply live. Move, stop, vanish - every map sets its own rules.', '.disclaimer': 'Fan concept by Tessa Kerk - unofficial, not endorsed by Supercell - Fan Content Policy' };
     for (const [sel, value] of Object.entries(cleanText)) { const el = document.querySelector(sel); if (el) el.textContent = value; }
     if (stamp) stamp.textContent = `V${CFG.BUILD.n} - ${CFG.BUILD.milestone}`;
+    if (stamp) bindStampTapToggle(stamp);
 
     if (window.Maker) Maker.init();                 // wires the editor panel (+ ?view=maker)
     if (new URLSearchParams(location.search).has('debug') && window.Debug) Debug.init();
