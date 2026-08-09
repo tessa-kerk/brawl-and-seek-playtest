@@ -42,7 +42,7 @@
   // It is consulted ONLY as a fallback for the default when no explicit
   // `?blockout=1` flag is present — an explicit flag always wins, exactly
   // like the real, un-test-seamed promotion path would behave.
-  const DEFAULT_BUNDLE_NAME = root.__TEST_FORCE_DEFAULT_BUNDLE__ || 'ordinary';
+  const DEFAULT_BUNDLE_NAME = root.__TEST_FORCE_DEFAULT_BUNDLE__ || 'blockout'; // PROMOTED 05-08 local (Tessa's approval after her hider-side phone check): staged Acid Lakes arena is the default; flag/validator/ordinary bundle retained per A18 §C9
 
   const params = new URLSearchParams(location.search);
   const flagPresent = params.get('blockout') === '1';
