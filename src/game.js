@@ -46,10 +46,6 @@
     return displayModeStandalone || !!(navigator.standalone);
   }
 
-  function isPortraitRotateStage() {
-    return matchMedia('(orientation: portrait) and (pointer: coarse) and (hover: none)').matches;
-  }
-
   function toggleDebugFromStamp() {
     if (!window.Debug) return;
     if (typeof Debug.toggle === 'function') {
@@ -92,7 +88,7 @@
     // narrow LANDSCAPE phone like 844x390 fell under and got the sheet,
     // eating ~60% of its height for a postage-stamp arena — wrong axis to
     // gate on. Real devices only ever reach this view in landscape (the
-    // portrait rotation is capability-aware, so orientation is the correct signal).
+    // portrait is blocked by the rotate prompt, so orientation is the correct signal).
     let padR = 0, padB = 0, padT = 0;
     if (STATE.view === 'maker') {
       if (cssW > cssH) padR = 340; else padB = Math.min(Math.round(cssH * 0.46), 360);
@@ -125,7 +121,7 @@
 
     fit = {
       active: true,
-      source: isPortraitRotateStage() ? 'portrait-css-rotate' : 'normal',
+      source: 'normal',
       standalone: isStandaloneMode(),
       mode: isStandaloneMode() ? 'standalone' : 'tab',
       stageRect: { width: Math.round(cssW), height: Math.round(cssH) },

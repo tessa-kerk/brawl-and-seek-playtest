@@ -1,4 +1,4 @@
-/* Brawl & Seek — layout & UI chrome. The arena itself is drawn on <canvas>;
+﻿/* Brawl & Seek â€” layout & UI chrome. The arena itself is drawn on <canvas>;
  * everything textual (title bar, hint, build stamp) is DOM so it stays crisp at
  * any scale, including 360px phone width. */
 
@@ -14,7 +14,7 @@
 
 /* ---- Landscape-only lock (fidelity rule 3g) --------------------------
    Pure-CSS media-query guard: portrait shows this, hides nothing else (the
-   game keeps running underneath — no state loss on rotate). Landscape hides
+   game keeps running underneath â€” no state loss on rotate). Landscape hides
    this entirely (display:none, not just opacity, so it can never eat touches). */
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;overscroll-behavior:none;}
@@ -36,56 +36,66 @@ body{
 #stage{position:fixed;inset:0;overflow:hidden;touch-action:none;overscroll-behavior:none;}
 #game{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;}
 
-#portrait-letterbox{
+
+/* Brief erratum (05-08): Concept Brief rule 3l now uses a rotate overlay
+   because iOS left a residual letterbox strip that could not be painted over.
+   The gameplay still runs underneath so rotating to landscape returns instantly. */
+#rotate-device-prompt{
   position:fixed;
   inset:0;
-  z-index:1;
-  pointer-events:none;
-  display:none;
+  z-index:3;
   background:#1E2340;
+  display:none;
+  flex-direction:column;
   align-items:center;
   justify-content:center;
-}
-#portrait-letterbox span{
-  position:absolute;
-  left:50%;
-  top:50%;
-  transform:translate(-50%,-50%) rotate(90deg);
-  transform-origin:center;
-  font-family:'Lilita One',cursive;
-  font-size:clamp(18px, 10vw, 64px);
-  letter-spacing:.08em;
+  text-align:center;
+  gap:12px;
+  padding:12px;
   color:#F6F4EF;
-  opacity:.18;
-  white-space:nowrap;
+  pointer-events:auto;
 }
-
-/* No rotate prompt (Concept Brief rule 3l, 20-07-2026 — "it loads landscape
-   and you turn," never a stop-and-ask screen). Held portrait, #stage itself
-   rotates 90° to fill the physical viewport landscape-style: its OWN layout
-   box is sized 100vh×100vw (so canvas.clientWidth/Height, read in game.js
-   resize(), naturally comes out as a landscape box regardless of which way
-   the phone is held — zero fit-formula changes needed), then rotated into
-   place. The large viewport units deliberately include the home-indicator
-   side of an iPhone's physical screen; touch coordinates are inverted from
-   the transformed stage rectangle in src/input.js. A CSS
-   transform on #stage makes it the containing block for its position:fixed
-   descendants too (the joystick ring/nub, appended into #stage) — they
-   already compute their positions in this same rotated-box coordinate
-   space, so they land correctly with no extra CSS needed. */
-/* Portrait (coarse-pointer) play path: #stage remains unrotated.
-   The canvas world is rotated in JS; HUD is rotated per-element. */
+#rotate-device-prompt svg{
+  width:88px;
+  height:96px;
+  filter:drop-shadow(0 1px 12px rgba(0,0,0,.35));
+  animation: rotatePrompt 2.1s ease-in-out infinite;
+}
+#rotate-prompt-title{
+  margin:0;
+  font-family:'Lilita One',cursive;
+  font-size:clamp(20px, 6vw, 38px);
+  letter-spacing:.06em;
+  line-height:1;
+}
+#rotate-prompt-sub{
+  margin:0;
+  font-family:'Nunito Sans',sans-serif;
+  font-size:clamp(13px, 3.6vw, 16px);
+  opacity:.9;
+}
+#rotate-device-prompt .rotate-phone{
+  width:88px;
+  height:96px;
+}
+@keyframes rotatePrompt{
+  0%,100%{transform:rotate(-6deg);} 
+  50%{transform:rotate(6deg);}
+}
 @media (orientation:portrait) and (pointer:coarse) and (hover:none){
-  #portrait-letterbox{display:flex;}
-  #stage{
-    top:0; left:0; right:auto; bottom:auto;
-    width:max(100lvh,100dvh); height:100lvw;
-    transform-origin:top left;
-    transform:rotate(90deg) translateY(-100%);
-    z-index:2;
-  }
+  #rotate-device-prompt{display:flex;}
+  #game{visibility:hidden;}
+  #stage > *:not(#topbar):not(.disclaimer){visibility:hidden;}
+  /* The topbar/disclaimer z-indices live inside #stage's stacking context, so
+     they cannot outrank the prompt (a sibling) on their own — the whole stage
+     must sit above it. pointer-events:none stops hidden game surfaces from
+     eating touches meant for the prompt. CONCEPT + disclaimer must stay
+     visible in EVERY view (hard-line rule). */
+  #stage{z-index:4; pointer-events:none; background:transparent;}
 }
-
+@media (prefers-reduced-motion: reduce){
+  #rotate-device-prompt svg{animation:none;transform:rotate(-3deg);}
+}
 /* Fine-pointer desktop windows can be taller than wide without becoming a
    phone. Keep the gameplay composition upright and centre the audited
    landscape camera surface inside honest Night Navy letterbox space. */
@@ -101,9 +111,9 @@ body{
 }
 
 /* ---- Top bar: hard-line badges ONLY (rule 3j, 20-07-2026) -------------
-   The public event surface is "her bot-match recording: controls only" —
+   The public event surface is "her bot-match recording: controls only" â€”
    no wordmark, no menu chrome. CONCEPT + the build stamp are the one
-   exception (must never be hidden, in any view — nothing may pass as a
+   exception (must never be hidden, in any view â€” nothing may pass as a
    real in-game screenshot), so they stay, shrunk into a plain corner row
    instead of a full title bar. */
 #topbar{
@@ -137,11 +147,11 @@ body.truth-patch #hint,body.truth-patch #ov-left,body.truth-patch #ov-right,body
   background:rgba(53,224,208,.10);white-space:nowrap;
 }
 
-/* ---- In-game overlays (rule 3j) — Brawl's own grammar, not a chrome
+/* ---- In-game overlays (rule 3j) â€” Brawl's own grammar, not a chrome
    chip row: a single sparse plate per corner, learned from her recording's
    "Brawlers left: N" (position, plate, bold display type). Two plates only:
    hiders/seekers (our "brawlers left" equivalent) and score/time (our
-   mechanic's own feedback, since Brawl has no scoring analogue to borrow —
+   mechanic's own feedback, since Brawl has no scoring analogue to borrow â€”
    given the same plate language rather than invented chrome). ------------ */
 .ov-plate{
   position:absolute;top:calc(env(safe-area-inset-top) + 10px);
@@ -152,7 +162,7 @@ body.truth-patch #hint,body.truth-patch #ov-left,body.truth-patch #ov-right,body
 }
 .ov-plate.hidden{opacity:0;transition:opacity .35s ease;}
 #ov-left{left:calc(env(safe-area-inset-left) + 10px);}
-/* Clears #topbar's CONCEPT/stamp badges (same corner, hard line — must
+/* Clears #topbar's CONCEPT/stamp badges (same corner, hard line â€” must
    never be occluded), so this plate sits below them, not overlapping. */
 #ov-right{top:calc(env(safe-area-inset-top) + 38px);right:calc(env(safe-area-inset-right) + 10px);text-align:right;}
 #ov-right{pointer-events:auto;}
@@ -185,17 +195,17 @@ body.truth-patch #hint,body.truth-patch #ov-left,body.truth-patch #ov-right,body
    18-07-2026, same class of bug as the earlier "unplated teal-on-tan"
    status chip): a text-shadow alone doesn't hold up over the world art's
    varied ground colour (thin on the tan floor). Same solid dark plate as
-   every other HUD readout — legibility never depends on what's rendered
+   every other HUD readout â€” legibility never depends on what's rendered
    underneath.
    TESTED against the footage-referenced environment (v28, 20-07-2026,
    PM directive): her own BRAWL/SHOWDOWN! banners are bare outlined text,
    no plate, so a bare A/B was run for real before keeping this. Verdict:
    bare loses. A thick text-stroke keeps "HIDE!" itself legible, but the
    subtitle line straddles wall/bush/floor in the same frame and reads
-   thin wherever it crosses busy texture — our banner has to survive an
+   thin wherever it crosses busy texture â€” our banner has to survive an
    ARBITRARY background (any tile mix, any moment), unlike her reference
    clips which happen to land on comparatively even ground. The plate
-   stays as a deliberate, tested exception, not an untried default —
+   stays as a deliberate, tested exception, not an untried default â€”
    screenshots: Art/2026-07-20 - v28 banner AB - plated (kept).png /
    ...bare (rejected, subtitle illegible).png. */
 #banner{
@@ -207,7 +217,7 @@ body.truth-patch #hint,body.truth-patch #ov-left,body.truth-patch #ov-right,body
   max-width:80vw;
 }
 #banner.show{opacity:1;}
-/* Right-sized (PM flag, 18-07-2026 — footage-checked against how Brawl
+/* Right-sized (PM flag, 18-07-2026 â€” footage-checked against how Brawl
    scales its own event banners): the plate read oversized relative to a
    short landscape phone's fitted arena, covering most of the play area
    while showing. A HUD callout, not a full-screen takeover. */
@@ -295,15 +305,15 @@ body.truth-patch #hint,body.truth-patch #ov-left,body.truth-patch #ov-right,body
 }
 
 /* ---- Bottom-right badge: controls only (rule 3k, 20-07-2026) ---------
-   Camo-badge idea is DEAD — Tessa's ruling: "no one looks at their control
+   Camo-badge idea is DEAD â€” Tessa's ruling: "no one looks at their control
    buttons when they play, it's all muscle memory." Camo state now reads
    ON THE BRAWLER (paint fill + FX.youAreHere pulse, see render.js/fx.js),
    never here. This slot sits where Brawl's own attack/Super button lives
    and is CONTROLS ONLY: the empty/disabled attack slot for a hider (no
-   icon, no ring fill, no label — matching what her footage shows for a
+   icon, no ring fill, no label â€” matching what her footage shows for a
    brawler with nothing to fire), and becomes the real Tag fire button once
    M5 adds the playable seeker. The Map Maker sandbox (below) keeps its own
-   state-chip behaviour — it's a debug teaching tool, not real gameplay chrome. */
+   state-chip behaviour â€” it's a debug teaching tool, not real gameplay chrome. */
 #status{
   position:absolute;right:calc(env(safe-area-inset-right) + 22px);
   bottom:calc(env(safe-area-inset-bottom) + 22px);
@@ -354,7 +364,7 @@ img#status-icon{width:26px;height:26px;object-fit:contain;font-size:0;}
   #hint,#status{transition:none;}
 }
 
-/* Desktop: dock the summary beside the map — the reveal map IS the shareable
+/* Desktop: dock the summary beside the map â€” the reveal map IS the shareable
    artefact, so the panel must not sit on top of the hiding spots. */
 @media (min-width:900px){
   #endpanel{
@@ -377,11 +387,11 @@ img#status-icon{width:26px;height:26px;object-fit:contain;font-size:0;}
 }
 
 /* ======================================================================
-   MAP MAKER — the editor frame. This is the pitch's money shot, so it must
+   MAP MAKER â€” the editor frame. This is the pitch's money shot, so it must
    read as a real properties inspector, not a row of debug switches.
    ====================================================================== */
 
-/* Entry pill — debug-only (rule 3j, 20-07-2026): the tuning sandbox is off
+/* Entry pill â€” debug-only (rule 3j, 20-07-2026): the tuning sandbox is off
    the public event surface entirely now; this pill only exists behind
    ?debug=1/?maker=1 (src/maker.js toggles its display). Sits just under the
    corner badges, well clear of the in-game overlay plates. Its own teal
@@ -414,7 +424,7 @@ body.maker #makerpanel{
   box-shadow:0 -14px 40px rgba(0,0,0,.45);
   overflow-y:auto;-webkit-overflow-scrolling:touch;
 }
-/* Landscape: docked right rail, like an inspector — the horizontal room
+/* Landscape: docked right rail, like an inspector â€” the horizontal room
    landscape gives you. PM fit fix (18-07-2026): was a raw min-width:860px
    breakpoint, which a narrow LANDSCAPE phone (844x390) fell under and got
    the portrait sheet instead, eating ~60% of its height for a postage-
@@ -427,8 +437,8 @@ body.maker #makerpanel{
     padding:calc(env(safe-area-inset-top) + 16px) 18px 18px;
   }
 }
-/* Portrait: bottom sheet (unreachable in real play — the rotate-prompt
-   already covers the whole screen there — kept for narrow-viewport tooling
+/* Portrait: bottom sheet (unreachable in real play â€” the rotate-prompt
+   already covers the whole screen there â€” kept for narrow-viewport tooling
    and as the honest fallback if that guard is ever bypassed). */
 @media (orientation:portrait){
   body.maker #makerpanel{
@@ -485,7 +495,7 @@ body.maker #makerpanel{
 .mk-surf.on{border-color:var(--teal);background:rgba(53,224,208,.10);}
 .mk-surf.on i{opacity:1;box-shadow:0 0 0 1.5px rgba(53,224,208,.55);}
 .mk-surf.on span{opacity:1;color:var(--teal);}
-/* Per-surface tile-count hint (PM directive, 18-07-2026) — a small, honest
+/* Per-surface tile-count hint (PM directive, 18-07-2026) â€” a small, honest
    readout under the label; a "0" (this map has none of this surface) is
    dimmer rather than alarming, since it's expected map-to-map variance,
    not an error. */
@@ -560,7 +570,7 @@ body.maker #makerpanel{
   body.maker #status-label{right:calc(340px + 22px);}
 }
 /* Portrait: lift the badge + its label clear of the bottom sheet (see the
-   sheet's own note above — unreachable in real play, kept as the honest
+   sheet's own note above â€” unreachable in real play, kept as the honest
    fallback). */
 @media (orientation:portrait){
   body.maker #status{bottom:calc(46vh + 16px);}
@@ -573,9 +583,9 @@ body.maker #makerpanel{
 #mk-open, #replay, #mk-back, #mk-reset, .mk-surf, .mk-seg button, .mk-switch{touch-action:manipulation;}
 
 /* ======================================================================
-   M4 — full prefers-reduced-motion pass. Kill DECORATIVE motion (bounces,
+   M4 â€” full prefers-reduced-motion pass. Kill DECORATIVE motion (bounces,
    scale-pops, the knob slide); keep opacity fades (not "motion") and the paint
-   fill itself (that's the mechanic, not decoration — its wobble/drips are
+   fill itself (that's the mechanic, not decoration â€” its wobble/drips are
    already gated in render.js, and FX bursts/ripples in fx.js).
    ====================================================================== */
 @media (prefers-reduced-motion: reduce){
@@ -606,3 +616,4 @@ body.maker #makerpanel{
 #pace.hidden{opacity:0;pointer-events:none;transition:opacity .3s ease;}
 body.maker #pace{display:none;}                 /* Event view only */
 #pace button{touch-action:manipulation;}
+

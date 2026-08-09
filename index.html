@@ -14,16 +14,24 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Brawl & Seek">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="stylesheet" href="css/fonts.css?v=66">
-  <link rel="stylesheet" href="css/main.css?v=66">
+  <link rel="stylesheet" href="css/fonts.css?v=67">
+  <link rel="stylesheet" href="css/main.css?v=67">
 </head>
 <body>
-  <div id="portrait-letterbox" aria-hidden="true"><span>BRAWL &amp; SEEK</span></div>
+    <div id="rotate-device-prompt" aria-hidden="true">
+    <div class="rotate-phone" aria-hidden="true">
+      <svg viewBox="0 0 88 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="8" width="52" height="80" rx="12" ry="12" stroke="#8A90AD" stroke-width="6"/>
+        <rect x="12" y="16" width="36" height="56" rx="8" ry="8" fill="#1E2340" stroke="#A7A8B2" stroke-width="4"/>
+        <path d="M66 26 74 34 66 42" stroke="#35E0D0" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M66 34H54" stroke="#35E0D0" stroke-width="6" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <p id="rotate-prompt-title">ROTATE YOUR DEVICE</p>
+    <p id="rotate-prompt-sub">Brawl &amp; Seek plays in landscape</p>
+  </div>
 
-  <!-- Landscape-only (Concept Brief fidelity rule 3g), but no rotate prompt.
-       The page stays unrotated in portrait phone mode; canvas rendering
-       rotates the world in src/game.js, and each DOM HUD element rotates
-       individually in CSS so the overlay language stays sideways. -->
+   <!-- Coarse-pointer portrait now shows rotate prompt overlay; landscape and desktop are unchanged. -->
   <div id="stage">
     <canvas id="game"></canvas>
 
@@ -36,7 +44,7 @@
          surface (Map Maker returns behind ?debug=1/?maker=1, see maker.js). -->
     <div id="topbar">
       <span class="concept" title="Unofficial fan concept - not a real in-game screenshot">CONCEPT</span>
-      <span class="stamp">V66 - ACID LAKES ARENA PROMOTED</span>
+      <span class="stamp">V67 - ACID LAKES ARENA PROMOTED</span>
       <span class="truth-label">DIRECTIVE 008 DEVICE FIX</span>
     </div>
 
@@ -171,31 +179,33 @@
        fetch+hash work starts as early as useful, right after assets.js,
        so it runs in parallel with image preload; its result is only
        consumed later, by game.js's boot(). -->
-  <script src="src/config.js?v=66"></script>
-  <script src="data/arena.js?v=66"></script>
-  <script src="src/bundle-select.js?v=66"></script>
-  <script src="src/assets.js?v=66"></script>
-  <script src="src/blockout-validate.js?v=66"></script>
-  <script src="data/collision.js?v=66"></script>
-  <script src="data/tuning.js?v=66"></script>
-  <script src="src/input.js?v=66"></script>
-  <script src="src/world.js?v=66"></script>
-  <script src="src/arena.js?v=66"></script>
-  <script src="src/ai.js?v=66"></script>
-  <script src="src/fx.js?v=66"></script>
-  <script src="src/player.js?v=66"></script>
-  <script src="src/tag.js?v=66"></script>
-  <script src="src/hider.js?v=66"></script>
-  <script src="src/seeker.js?v=66"></script>
-  <script src="src/round.js?v=66"></script>
-  <script src="src/render.js?v=66"></script>
-  <script src="src/reveal.js?v=66"></script>
-  <script src="src/maker.js?v=66"></script>
-  <script src="src/pace.js?v=66"></script>
-  <script src="src/debug.js?v=66"></script>
-  <script src="src/game.js?v=66"></script>
+  <script src="src/config.js?v=67"></script>
+  <script src="data/arena.js?v=67"></script>
+  <script src="src/bundle-select.js?v=67"></script>
+  <script src="src/assets.js?v=67"></script>
+  <script src="src/blockout-validate.js?v=67"></script>
+  <script src="data/collision.js?v=67"></script>
+  <script src="data/tuning.js?v=67"></script>
+  <script src="src/input.js?v=67"></script>
+  <script src="src/world.js?v=67"></script>
+  <script src="src/arena.js?v=67"></script>
+  <script src="src/ai.js?v=67"></script>
+  <script src="src/fx.js?v=67"></script>
+  <script src="src/player.js?v=67"></script>
+  <script src="src/tag.js?v=67"></script>
+  <script src="src/hider.js?v=67"></script>
+  <script src="src/seeker.js?v=67"></script>
+  <script src="src/round.js?v=67"></script>
+  <script src="src/render.js?v=67"></script>
+  <script src="src/reveal.js?v=67"></script>
+  <script src="src/maker.js?v=67"></script>
+  <script src="src/pace.js?v=67"></script>
+  <script src="src/debug.js?v=67"></script>
+  <script src="src/game.js?v=67"></script>
 </body>
 </html>
+
+
 
 
 

@@ -1,4 +1,4 @@
-/* Brawl & Seek â€” on-screen debug overlay, toggled by ?debug=1 or the
+/* Brawl & Seek — on-screen debug overlay, toggled by ?debug=1 or the
  * build-stamp triple-tap in standalone. This is the ground-truth capture
  * instrument: it must report what happened, never reshape gameplay.
  */
@@ -52,7 +52,7 @@
 
     const d = Input.debug();
     const pd = (Player.dbg) || { tvx: 0, tvy: 0, vx: 0, vy: 0, blockedX: false, blockedY: false, hasInput: false };
-    const vv = window.visualViewport;
+    const vv = (window.visualViewport);
     const bundleName = window.ARENA_BUNDLE.name;
     const bundleIsBlockout = window.ARENA_BUNDLE.isBlockout;
     const bundleKind = bundleIsBlockout ? 'BLOCKOUT' : 'ORDINARY';
@@ -94,12 +94,12 @@
 
     // ---- text panel ----
     const ta = (() => { const el = document.getElementById('stage'); return el ? getComputedStyle(el).touchAction : '?'; })();
-    const touchList = d.touches.map((t) => `#${t.id}(${t.x.toFixed(0)},${t.y.toFixed(0)})`).join(' ') || 'â€”';
+    const touchList = d.touches.map((t) => `#${t.id}(${t.x.toFixed(0)},${t.y.toFixed(0)})`).join(' ') || 'Ã¢â‚¬â€';
     panel.textContent = [
       `DEBUG  mode:${d.mode}   fps:${fps}`,
       `ARENA BUNDLE: ${bundleKind}  name:${bundleName}  isBlockout:${bundleIsBlockout}`,
       `touches(${d.touches.length}): ${touchList}`,
-      `anchor: ${d.anchor ? `(${d.anchor.x.toFixed(0)},${d.anchor.y.toFixed(0)})` : 'â€”'}  cur: ${d.cur ? `(${d.cur.x.toFixed(0)},${d.cur.y.toFixed(0)})` : 'â€”'}`,
+      `anchor: ${d.anchor ? `(${d.anchor.x.toFixed(0)},${d.anchor.y.toFixed(0)})` : 'Ã¢â‚¬â€'}  cur: ${d.cur ? `(${d.cur.x.toFixed(0)},${d.cur.y.toFixed(0)})` : 'Ã¢â‚¬â€'}`,
       `stick vec: (${f2(d.vec.x)},${f2(d.vec.y)})  mag ${d.mag.toFixed(2)}`,
       `intended v: (${n(pd.tvx)},${n(pd.tvy)}) px/s`,
       `applied  v: (${n(pd.vx)},${n(pd.vy)}) px/s`,
@@ -107,13 +107,13 @@
       `player: hidden:${Player.hidden} prog ${Player.progress.toFixed(2)} still ${Player.still.toFixed(1)}s found:${Player.found}`,
       `round: ${Round.phase} t=${Round.elapsed.toFixed(1)}s left=${Round.timeLeft().toFixed(0)}s repaint=${Round.repaintTime().toFixed(1)}s`,
       `score: ${Math.round(Round.score)} rate ${Round.rate.toFixed(1)}/s camp ${Round.camp.toFixed(1)}s  found ${Round.foundCount} alive ${Round.hidersAlive()}`,
-      `seekers(${Seekers.active().length}) spd ${Seekers.speedOf().toFixed(2)}: ${Seekers.list.map((s) => `${s.state}/hp${Math.max(0, s.health)}/m${s.mistakes}`).join(' ') || 'â€”'}`,
-      `tags in flight: ${Tags.list.length}  cd: ${Seekers.list.map((s) => Math.max(0, s.tagCd).toFixed(2)).join(' ') || 'â€”'}`,
+      `seekers(${Seekers.active().length}) spd ${Seekers.speedOf().toFixed(2)}: ${Seekers.list.map((s) => `${s.state}/hp${Math.max(0, s.health)}/m${s.mistakes}`).join(' ') || 'Ã¢â‚¬â€'}`,
+      `tags in flight: ${Tags.list.length}  cd: ${Seekers.list.map((s) => Math.max(0, s.tagCd).toFixed(2)).join(' ') || 'Ã¢â‚¬â€'}`,
       `view: ${STATE.view}  surfaces: ${Object.entries(STATE.camoSurfaces).filter(([, v]) => v).map(([k]) => k).join('+') || 'none'}  repaint ${STATE.repaintTime}s  tell:${STATE.rippleTell ? 'on' : 'off'}`,
-      `speed x${STATE.speedScale.toFixed(2)}  (player ${(CFG.playerSpeed * STATE.speedScale).toFixed(2)} Â· seeker ${Seekers.speedOf().toFixed(2)} Â· tag ${(TUNING.seeker.baseSpeed * TUNING.tag.speedMult * STATE.speedScale).toFixed(2)} tiles/s)`,
+      `speed x${STATE.speedScale.toFixed(2)}  (player ${(CFG.playerSpeed * STATE.speedScale).toFixed(2)} Ã‚Â· seeker ${Seekers.speedOf().toFixed(2)} Ã‚Â· tag ${(TUNING.seeker.baseSpeed * TUNING.tag.speedMult * STATE.speedScale).toFixed(2)} tiles/s)`,
       `pd:${d.pdOk ? 'ok' : 'NO'}  last:${d.lastType}  evts:${d.evtCount}`,
-      `rotation: ${d.rotation ? 'mobile-portrait' : 'upright'}  stage: ${d.geometry ? d.geometry.width.toFixed(0) + 'Ã—' + d.geometry.height.toFixed(0) + ' rect(' + d.geometry.rect.left.toFixed(0) + ',' + d.geometry.rect.top.toFixed(0) + 'â†’' + d.geometry.rect.right.toFixed(0) + ',' + d.geometry.rect.bottom.toFixed(0) + ')' : '?'}`,
-      `FIT: mode:${fitMode} src:${fitSource} rot:${d.rotation ? 'on' : 'off'} innerW/H:${innerWidth}x${innerHeight} docW/H:${doc.clientWidth}x${doc.clientHeight} vvW/H:${vv ? `${Math.round(vv.width)}x${Math.round(vv.height)}@${Math.round(vv.offsetTop)}` : 'n/a'} screen:${screen.width}x${screen.height} rect:${rect ? `${Math.round(rect.left)},${Math.round(rect.top)} ${Math.round(rect.width)}x${Math.round(rect.height)}` : 'n/a'} stageRect:${fit && fit.active && fit.stageRect ? `${fit.stageRect.width}x${fit.stageRect.height}` : 'inactive'} safe(T,R,B,L):${safe.top}/${safe.right}/${safe.bottom}/${safe.left}`,
+      `stage: ${d.geometry ? d.geometry.width.toFixed(0) + 'Ãƒâ€\"' + d.geometry.height.toFixed(0) + ' rect(' + d.geometry.rect.left.toFixed(0) + ',' + d.geometry.rect.top.toFixed(0) + 'Ã¢â€ â€™' + d.geometry.rect.right.toFixed(0) + ',' + d.geometry.rect.bottom.toFixed(0) + ')' : '?'}`,
+      `FIT: mode:${fitMode} src:${fitSource} innerW/H:${innerWidth}x${innerHeight} docW/H:${doc.clientWidth}x${doc.clientHeight} vvW/H:${vv ? `${Math.round(vv.width)}x${Math.round(vv.height)}@${Math.round(vv.offsetTop)}` : 'n/a'} screen:${screen.width}x${screen.height} rect:${rect ? `${Math.round(rect.left)},${Math.round(rect.top)} ${Math.round(rect.width)}x${Math.round(rect.height)}` : 'n/a'} stageRect:${fit && fit.active && fit.stageRect ? `${fit.stageRect.width}x${fit.stageRect.height}` : 'inactive'} safe(T,R,B,L):${safe.top}/${safe.right}/${safe.bottom}/${safe.left}`,
       `vv: off(${vv ? vv.offsetLeft.toFixed(0) + ',' + vv.offsetTop.toFixed(0) : '?'}) h ${vv ? vv.height.toFixed(0) : '?'} / inner ${innerHeight}  dpr ${window.devicePixelRatio}`,
       `touch-action(stage): ${ta}`,
     ].join('\n');
@@ -121,3 +121,4 @@
 
   window.Debug = { init, destroy, toggle, frame, get on() { return on; } };
 })();
+
