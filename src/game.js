@@ -1,4 +1,4 @@
-/* Brawl & Seek — boot, global state, the fit-to-viewport transform, and the main
+﻿/* Brawl & Seek — boot, global state, the fit-to-viewport transform, and the main
  * loop. The arena is a fixed world drawn contained and centred, so it reads from
  * a 1280-wide desktop down to a 360-wide phone. A debug API (window.Game.pose /
  * pause) lets the capture rig freeze exact frames; ?debug=1 adds the overlay. */
@@ -37,6 +37,7 @@
   let cameraX = 0, cameraY = 0;
   let last = 0, tSec = 0, renderSerial = 0;
   let elHint, elStatus, elStatusLabel, elBanner, elBonus, elOvLeft, elOvRight, elPace;
+  let fit = { active: false };
   let lastPhase = 'hide', bannerT = 0, bonusArmed = false, lastDt = 0.016;
 
   function isPortraitRotateStage() {
@@ -49,17 +50,30 @@
       stage.style.height = '';
       stage.style.left = '';
       stage.style.top = '';
+      fit = { active: false };
       return;
     }
+
     const vv = window.visualViewport;
-    const candidates = [window.innerWidth, window.innerHeight];
-    if (vv) {
-      candidates.push(vv.width, vv.height);
-    }
-    const longAxis = Math.max(...candidates);
-    const shortAxis = Math.min(...candidates);
-    stage.style.width = `${Math.round(longAxis)}px`;
-    stage.style.height = `${Math.round(shortAxis)}px`;
+    const doc = document.documentElement;
+    const clientW = Math.max(0, Math.round(doc.clientWidth));
+    const clientH = Math.max(0, Math.round(doc.clientHeight));
+    const longAxis = Math.max(clientW, clientH);
+    const shortAxis = Math.min(clientW, clientH);
+
+    stage.style.width = `${longAxis}px`;
+    stage.style.height = `${shortAxis}px`;
+    stage.style.left = '0';
+    stage.style.top = '0';
+
+    fit = {
+      active: true,
+      viewport: { clientW, clientH },
+      longAxis,
+      shortAxis,
+      vv: vv ? { w: Math.round(vv.width), h: Math.round(vv.height), offsetTop: Math.round(vv.offsetTop) } : null,
+      style: { width: `${longAxis}px`, height: `${shortAxis}px` },
+    };
   }
 
   function resize() {
@@ -110,10 +124,8 @@
   function updateCamera() {
     if (STATE.view === 'maker' || !window.Player) return;
     const viewW = cssW / scale, viewH = cssH / scale, a = CFG.camera.anchor;
-    const maxCamX = Math.max(0, Arena.W - viewW);
-    const maxCamY = Math.max(0, Arena.H - viewH);
-    cameraX = Math.min(maxCamX, Math.max(0, Player.x - viewW * a.x));
-    cameraY = Math.min(maxCamY, Math.max(0, Player.y - viewH * a.y));
+    cameraX = Math.max(0, Math.min(Arena.W - viewW, Player.x - viewW * a.x));
+    cameraY = Math.max(0, Math.min(Arena.H - viewH, Player.y - viewH * a.y));
     offX = -cameraX * scale;
     offY = -cameraY * scale;
   }
@@ -173,11 +185,9 @@
       x0: -offX / scale, y0: -offY / scale,
       x1: (cssW - offX) / scale, y1: (cssH - offY) / scale,
     };
-    const drawnBleed = clampToWorldRect(bleed);
-    paintWorldBoundaryOutOfView(ctx, bleed, drawnBleed);
     if (window.Assets && Assets.get('world_plate') && !blockoutActive && Arena.drawOccupiedBushTreatment && Round.phase !== 'over') Arena.drawOccupiedBushTreatment(ctx);
     if (Round.phase === 'over' && Arena.resetBushTreatmentFrame) Arena.resetBushTreatmentFrame();
-    Arena.draw(ctx, tSec, drawnBleed);                    // atomic native world canvas is the sole ground source
+    Arena.draw(ctx, tSec, bleed);                    // atomic native world canvas is the sole ground source
     FX.draw(ctx);
     if (maker) Arena.drawCamoOverlay(ctx);
 
@@ -219,32 +229,6 @@
     hud();
     if (window.Debug && Debug.on) Debug.frame();
     renderSerial++;
-  }
-
-  function clampToWorldRect(bleed) {
-    return {
-      x0: Math.max(0, Math.min(bleed.x0, Arena.W)),
-      y0: Math.max(0, Math.min(bleed.y0, Arena.H)),
-      x1: Math.max(0, Math.min(bleed.x1, Arena.W)),
-      y1: Math.max(0, Math.min(bleed.y1, Arena.H)),
-    };
-  }
-
-  function paintWorldBoundaryOutOfView(ctx, bleed, drawnBleed) {
-    if (
-      drawnBleed.x0 === bleed.x0 &&
-      drawnBleed.y0 === bleed.y0 &&
-      drawnBleed.x1 === bleed.x1 &&
-      drawnBleed.y1 === bleed.y1
-    ) return;
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(23, 27, 51, 0.86)';
-    if (bleed.x0 < drawnBleed.x0) ctx.fillRect(bleed.x0, bleed.y0, drawnBleed.x0 - bleed.x0, bleed.y1 - bleed.y0);
-    if (drawnBleed.x1 < bleed.x1) ctx.fillRect(drawnBleed.x1, bleed.y0, bleed.x1 - drawnBleed.x1, bleed.y1 - bleed.y0);
-    if (bleed.y0 < drawnBleed.y0) ctx.fillRect(drawnBleed.x0, bleed.y0, drawnBleed.x1 - drawnBleed.x0, drawnBleed.y0 - bleed.y0);
-    if (drawnBleed.y1 < bleed.y1) ctx.fillRect(drawnBleed.x0, drawnBleed.y1, drawnBleed.x1 - drawnBleed.x0, bleed.y1 - drawnBleed.y1);
-    ctx.restore();
   }
 
   // ---- HUD ---------------------------------------------------------------
@@ -458,6 +442,10 @@
   if (document.readyState === 'loading') addEventListener('DOMContentLoaded', boot);
   else boot();
 
+  function fitInfo() {
+    return fit ? JSON.parse(JSON.stringify(fit)) : { active: false };
+  }
+
   // ---- Debug / capture API ----------------------------------------------
   window.Game = {
     get scale() { return scale; }, get off() { return { x: offX, y: offY }; },
@@ -486,5 +474,6 @@
       return { x: Player.x, y: Player.y, screenX: Player.x * scale + offX, screenY: Player.y * scale + offY, renderSerial };
       STATE.paused = true;
     },
+    fitInfo,
   };
 })();

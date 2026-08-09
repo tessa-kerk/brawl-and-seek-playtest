@@ -52,8 +52,12 @@ body{
 @media (orientation:portrait) and (pointer:coarse) and (hover:none){
   #stage{
     top:0; left:0; right:auto; bottom:auto;
-    /* size is finalised in src/game.js from the current layout/visual
-       viewport long-axis so this path is stable across collapsed Safari bars. */
+    /* Size is finalised in src/game.js from the layout viewport: longAxis
+       = clientHeight, shortAxis = clientWidth for portrait phone rotation.
+       Transform arithmetic (393x852 example):
+       pre-rotate {w,h} = 852x393 -> rotate(90deg)+translateY(-100%)
+       maps (0,0)->(393,0), (852,393)->(0,852), so the box sits exactly over
+       the full physical viewport without a short-edge gap. */
     width:100%;
     height:100%;
     transform-origin:top left;

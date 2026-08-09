@@ -31,6 +31,8 @@
 
   function n(v) { return (v < 0 ? '' : ' ') + v.toFixed(0); }
   function f2(v) { return (v < 0 ? '' : ' ') + v.toFixed(2); }
+  function safeCssPx(cs, name) { const n = parseFloat(cs.getPropertyValue(name)); return Number.isFinite(n) ? Math.round(n) : 0; }
+  function docViewport() { return document.documentElement; }
 
   function frame() {
     if (!on) return;
@@ -44,6 +46,16 @@
     const bundleName = window.ARENA_BUNDLE.name;
     const bundleIsBlockout = window.ARENA_BUNDLE.isBlockout;
     const bundleKind = bundleIsBlockout ? 'BLOCKOUT' : 'ORDINARY';
+    const doc = docViewport();
+    const cs = getComputedStyle(doc);
+    const safe = {
+      top: safeCssPx(cs, '--safe-top'),
+      right: safeCssPx(cs, '--safe-right'),
+      bottom: safeCssPx(cs, '--safe-bottom'),
+      left: safeCssPx(cs, '--safe-left'),
+    };
+    const fit = (window.Game && typeof Game.fitInfo === 'function') ? Game.fitInfo() : null;
+    const rect = d.geometry ? d.geometry.rect : null;
 
     // ---- SVG layer ----
     let g = '';
@@ -89,6 +101,7 @@
       `speed x${STATE.speedScale.toFixed(2)}  (player ${(CFG.playerSpeed * STATE.speedScale).toFixed(2)} · seeker ${Seekers.speedOf().toFixed(2)} · tag ${(TUNING.seeker.baseSpeed * TUNING.tag.speedMult * STATE.speedScale).toFixed(2)} tiles/s)`,
       `pd:${d.pdOk ? 'ok' : 'NO'}  last:${d.lastType}  evts:${d.evtCount}`,
       `rotation: ${d.rotation ? 'mobile-portrait' : 'upright'}  stage: ${d.geometry ? d.geometry.width.toFixed(0) + '×' + d.geometry.height.toFixed(0) + ' rect(' + d.geometry.rect.left.toFixed(0) + ',' + d.geometry.rect.top.toFixed(0) + '→' + d.geometry.rect.right.toFixed(0) + ',' + d.geometry.rect.bottom.toFixed(0) + ')' : '?'}`,
+      `FIT: rot:${d.rotation ? 'on' : 'off'} innerW/H:${innerWidth}x${innerHeight} docW/H:${doc.clientWidth}x${doc.clientHeight} vvW/H:${vv ? `${Math.round(vv.width)}x${Math.round(vv.height)}@${Math.round(vv.offsetTop)}` : 'n/a'} screen:${screen.width}x${screen.height} rect:${rect ? `${Math.round(rect.left)},${Math.round(rect.top)} ${Math.round(rect.width)}x${Math.round(rect.height)}` : 'n/a'} axes:${fit && fit.active ? `${fit.longAxis}x${fit.shortAxis}` : 'inactive'} safe(T,R,B,L):${safe.top}/${safe.right}/${safe.bottom}/${safe.left}`,
       `vv: off(${vv ? vv.offsetLeft.toFixed(0) + ',' + vv.offsetTop.toFixed(0) : '?'}) h ${vv ? vv.height.toFixed(0) : '?'} / inner ${innerHeight}  dpr ${window.devicePixelRatio}`,
       `touch-action(stage): ${ta}`,
     ].join('\n');

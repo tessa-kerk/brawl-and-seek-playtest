@@ -1,13 +1,13 @@
-/* Brawl & Seek — input. One normalised move vector out.
+﻿/* Brawl & Seek â€” input. One normalised move vector out.
  *   WASD / Arrow keys on desktop (full speed).
  *   Touch: a thumb-stick, in one of two modes (query-selectable):
- *     fixed  (default, 18-07-2026)  — a standard fixed base bottom-left,
+ *     fixed  (default, 18-07-2026)  â€” a standard fixed base bottom-left,
  *                                generous dead-zone, NO re-anchor. This is
  *                                real Brawl's own joystick language (Concept
  *                                Brief rule 3g/3h UI split: only Brawl's own
  *                                control chrome sits inside the play frame),
  *                                so it's now the default, not the debug mode.
- *     float  (?joystick=float)  — a floating stick that anchors where you
+ *     float  (?joystick=float)  â€” a floating stick that anchors where you
  *                                first touch. Kept as a comparison affordance.
  *
  * iOS-Safari hardening (07-07-2026, after two mobile playtests where the sim
@@ -17,7 +17,7 @@
  *     iOS page-pan / pinch / double-tap-zoom stealing the touch).
  *   - State is rebuilt from the authoritative `event.touches` EVERY event, so a
  *     dropped touchend / reused identifier can't leave a stale anchor.
- *   - Telemetry (Input.debug()) drives the ?debug=1 overlay — the device
+ *   - Telemetry (Input.debug()) drives the ?debug=1 overlay â€” the device
  *     recording is now the ground truth, not a scripted sim. */
 (function () {
   const keys = new Set();
@@ -31,11 +31,11 @@
 
   const MODE = new URLSearchParams(location.search).get('joystick') === 'float' ? 'float' : 'fixed';
 
-  /* Capability-aware portrait coordinate remap (Concept Brief rule 3l —
+  /* Capability-aware portrait coordinate remap (Concept Brief rule 3l â€”
    * no rotate prompt; #stage itself renders rotated via CSS only for a
    * portrait coarse/no-hover primary pointer, see main.css).
    * Touch events keep reporting RAW physical clientX/clientY regardless of
-   * any CSS transform on an ancestor — the browser does NOT rotate touch
+   * any CSS transform on an ancestor â€” the browser does NOT rotate touch
    * coordinates for you, only the pixels it paints. Every touch coordinate
    * used for game logic must be converted into #stage's OWN rotated-box
    * space to match what game.js's cssW/cssH (stage.clientWidth/Height,
@@ -44,9 +44,9 @@
    * translateY(-100%), transform-origin:top left) on a box sized width=innerHeight,
    * height=innerWidth: inverting that transform gives
    *   gameX = physicalClientY
-   *   gameY = innerWidth − physicalClientX
+   *   gameY = innerWidth âˆ’ physicalClientX
    * innerWidth here is the PHYSICAL viewport width (the box's own height,
-   * i.e. the translateY(-100%) distance) — always call remap() with the
+   * i.e. the translateY(-100%) distance) â€” always call remap() with the
    * live window.innerWidth, never a cached value, since orientation can
    * change mid-session. isRotated() mirrors the exact CSS media query. */
   function isRotated() { return matchMedia('(orientation: portrait) and (pointer: coarse) and (hover: none)').matches; }
@@ -64,15 +64,6 @@
       bottom: toPx(cs.getPropertyValue('--safe-bottom')),
     };
   }
-  function rotatedAxes() {
-    if (!isRotated()) return null;
-    const vv = window.visualViewport;
-    const dims = [window.innerWidth, window.innerHeight];
-    if (vv) {
-      dims.push(vv.width, vv.height);
-    }
-    return { shortAxis: Math.min(...dims) };
-  }
   function geometry() {
     const el = stage();
     const rect = el ? el.getBoundingClientRect() : { left: 0, top: 0, right: innerWidth, bottom: innerHeight, width: innerWidth, height: innerHeight };
@@ -83,8 +74,7 @@
   function remap(x, y) {
     const g = geometry();
     if (!isRotated()) return { x: x - g.rect.left, y: y - g.rect.top };
-    const shortAxis = rotatedAxes()?.shortAxis ?? g.rect.width;
-    return { x: y - g.rect.top, y: shortAxis - x };
+    return { x: y - g.rect.top, y: g.height - (x - g.rect.left) };
   }
 
   // Tuning per mode.
@@ -96,6 +86,7 @@
   const anchor = { x: 0, y: 0 };       // float: where the finger first landed; fixed: the base
   const cur = { x: 0, y: 0 };          // current finger position
   const stick = { dx: 0, dy: 0 };      // throw offset, clamped to the mode's radius
+  const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 
   const dbg = {
     mode: MODE, touches: [], anchor: null, cur: null, vec: { x: 0, y: 0 }, mag: 0,
@@ -111,7 +102,7 @@
   // (#makerpanel, z-index 8) needs to reliably paint OVER the ring
   // (z-index 6) when the two overlap on a phone. Living as a body-level
   // sibling of #stage put the ring in a different z-index comparison than
-  // intended — as a child of #stage, both are compared in the same
+  // intended â€” as a child of #stage, both are compared in the same
   // context and the higher z-index wins, as the numbers already say.
   addEventListener('DOMContentLoaded', () => (document.getElementById('stage') || document.body).appendChild(ring));
 
@@ -120,17 +111,25 @@
   // bottom-sheet (#makerpanel, z-index 8 vs the ring's 6) already paints
   // over the ring where the two would overlap, and its touches are already
   // excluded from the stick by the existing #makerpanel UI-exclusion rule
-  // below — nothing to functionally protect, so keep this one position.
+  // below â€” nothing to functionally protect, so keep this one position.
   function base() {
     const w = gameW(), h = gameH();
     const basePos = { x: Math.max(78, w * 0.15), y: h - Math.max(120, h * 0.17) };
     if (!isRotated()) return basePos;
     const inset = safeInsets();
-    basePos.x = Math.max(inset.top + 24, Math.min(basePos.x, h - inset.bottom - 24));
-    basePos.y = Math.max(inset.right + 24, Math.min(basePos.y, w - inset.left - 24));
+    // Portrait-physical→rotated-stage mapping for the current 90° CSS transform:
+    //   gameX = physicalY - rect.top        (portrait top→bottom)
+    //   gameY = gameH - (physicalX - rect.left) (portrait right→left)
+    // Therefore:
+    //   portrait-physical-top => gameX min
+    //   portrait-physical-bottom => gameX max
+    //   portrait-physical-right => gameY min
+    //   portrait-physical-left => gameY max
+    basePos.x = clamp(basePos.x, inset.top + 24, w - inset.bottom - 24);
+    basePos.y = clamp(basePos.y, inset.right + 24, h - inset.left - 24);
     return basePos;
   }
-  // Neutral translucent grey — real Brawl's own control language, not our
+  // Neutral translucent grey â€” real Brawl's own control language, not our
   // brand accent (Concept Brief rule 3g/3h UI split: inside the play frame,
   // only Brawl's own UI vocabulary; our teal/magenta stays for OUR chrome).
   function styleRing(on) {
@@ -224,7 +223,7 @@
   }
   // Is the player actively commanding movement right now (key held, or the
   // stick deflected past its dead-zone)? Used to gate the repaint so pushing
-  // against a wall — where displacement can be zero — never starts a hide.
+  // against a wall â€” where displacement can be zero â€” never starts a hide.
   function engaged() {
     if (keys.size) return true;
     if (!active) return false;
@@ -261,3 +260,4 @@
     mapClient: remap,
   };
 })();
+
