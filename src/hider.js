@@ -59,22 +59,16 @@
     // Map Maker is a one-seeker sandbox; it must never attempt to construct
     // the live eight-hider roster against a tiny synthetic fixture.
     if ((window.STATE && STATE.view === 'maker') || /(?:^|[?&])view=maker(?:&|$)/.test(location.search)) return;
-    const sp = Arena.spawn();
     const required = CFG.characters.dummies.slice(0, TUNING.counts.dummies).length;
-    const safePool = Arena.freeTiles.map((tile) => {
-      const c = Arena.centre(tile.c, tile.r);
-      const safe = findSafe(c);
-      return safe ? { tile, safe } : null;
-    }).filter(Boolean);
-    if (safePool.length < required) throw new Error('No safe hider spawn pool: ' + safePool.length);
-    const farPool = safePool.filter((p) => AI.tileDist(sp.x, sp.y, p.safe.x, p.safe.y) > 2.2);
-    const pool = farPool.length >= required ? farPool : safePool;
-    const used = new Set();
+    const spawnPads = Arena.spawnSequenceLength ? Arena.spawnSequenceLength() : 0;
+    if (spawnPads && spawnPads < required + 1) {
+      throw new Error('Spawn sequence does not have enough pads for all hiders');
+    }
     CFG.characters.dummies.slice(0, TUNING.counts.dummies).forEach((def) => {
-      const pick = pool.find((p) => !used.has(p.tile.c + ',' + p.tile.r));
-      if (!pick) throw new Error('Safe hider pool exhausted');
-      used.add(pick.tile.c + ',' + pick.tile.r);
-      const t = { x: pick.safe.x, y: pick.safe.y, c: pick.tile.c, r: pick.tile.r };
+      const raw = Arena.spawn();
+      const safe = findSafe(raw) ||
+        Arena.safeActorPosition?.(Arena.W / 2, Arena.H / 2, CFG.playerRadius * T) || raw;
+      const t = { x: safe.x, y: safe.y };
       const d = make(def, t);
       AI.goTo(d, pickHideTile(d, 0));
       list.push(d);

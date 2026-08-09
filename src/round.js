@@ -18,6 +18,7 @@
     score: 0, rate: TUNING.hider.scoreRate, camp: 0,
     lastHideSpot: null, bonusFlash: 0,
     _wasHidden: false,
+    _seed: 0,
 
     hidersAlive() { return Hiders.alive().length + (Player.found ? 0 : 1); },
     totalSeconds() { return TUNING.round.hidePhase + TUNING.round.seekPhase; },
@@ -33,7 +34,11 @@
       return P.base;
     },
 
-    reset() {
+    reset(seed) {
+      this._seed = (seed != null && Number.isFinite(seed))
+        ? (seed >>> 0)
+        : (((this._seed || 0) + 1) >>> 0);
+      if (Arena.prepareSpawnCycle) Arena.prepareSpawnCycle(this._seed);
       this.phase = 'hide'; this.elapsed = 0; this.overT = 0; this.result = null;
       this.foundCount = 0; this.score = 0; this.rate = TUNING.hider.scoreRate;
       this.camp = 0; this.lastHideSpot = null; this.bonusFlash = 0; this._wasHidden = false;

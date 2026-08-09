@@ -38,13 +38,8 @@
   function reset() {
     list.length = 0;
     const sp = Arena.spawn();
-    // start the seeker far from the player's spawn
-    const far = Arena.freeTiles
-      .map((t) => ({ t, c: Arena.centre(t.c, t.r) }))
-      .filter(({c}) => Arena.safeActorPosition?.(c.x,c.y,CFG.playerRadius*T*1.02))
-      .sort((a, b) => AI.tileDist(sp.x, sp.y, b.c.x, b.c.y) - AI.tileDist(sp.x, sp.y, a.c.x, a.c.y))[0];
-    const safe = far || {c: Arena.spawn()};
-    list.push(make(safe.c.x, safe.c.y));
+    const safe = Arena.safeActorPosition?.(sp.x, sp.y, CFG.playerRadius * T * 1.02) || sp;
+    list.push(make(safe.x, safe.y));
   }
 
   // A found hider becomes a seeker — but not instantly, or a lucky find next to

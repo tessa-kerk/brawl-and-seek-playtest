@@ -218,14 +218,85 @@
   };
   function inBounds(c, r) { return c >= 0 && r >= 0 && c < cols && r < rows; }
 
-  // Spawn is authored near the audited open route, then validated against the
-  // complete final blocker model. A stale S marker or prop can never place a
-  // body inside visible geometry; the deterministic fallback scans nearest
-  // floor cells in row-major order.
-  const SPAWN_CANDIDATES = [[27, 8], [28, 8], [29, 8], [27, 9], [26, 8]];
-  function findSpawnPoint() {
+  // BS-013: pad-authoritative spawn candidates and deterministic round-seeded
+  // radial spread. Pads are read from TUNING.spawn.pads and are used exactly
+  // once each round in a round-local order.
+  const SPREAD_SEED_MUL = 1664525;
+  const SPREAD_SEED_ADD = 1013904223;
+  const SPAWN_PADS = Array.isArray(TUNING.spawn && TUNING.spawn.pads)
+    ? TUNING.spawn.pads
+      .filter((p) => Array.isArray(p) && p.length === 2)
+      .map(([c, r]) => ({ c: Number(c), r: Number(r) }))
+      .filter((p) => Number.isFinite(p.c) && Number.isFinite(p.r) && inBounds(p.c, p.r))
+    : [];
+  let spawnSequence = [];
+  let spawnCursor = 0;
+  let spawnSeed = 0;
+  const spawnPadCentre = ({ c, r }) => centre(c, r);
+
+  function lcg(seed) {
+    return function nextRand() {
+      seed = (Math.imul(seed, SPREAD_SEED_MUL) + SPREAD_SEED_ADD) >>> 0;
+      return seed / 0x100000000;
+    };
+  }
+
+  function sortPadsForSpread(seed) {
+    if (!SPAWN_PADS.length) return [];
+    const pads = SPAWN_PADS.map((p) => ({ ...p }));
+    const rnd = lcg(seed >>> 0);
+    const ordered = [];
+    const pool = pads.slice();
+    const start = Math.floor(rnd() * pool.length);
+    ordered.push(pool.splice(start, 1)[0]);
+    while (pool.length) {
+      let best = 0;
+      let bestScore = -1;
+      let bestJitter = -1;
+      for (let i = 0; i < pool.length; i++) {
+        const p = pool[i];
+        let minDist = Infinity;
+        for (const q of ordered) {
+          const dc = p.c - q.c, dr = p.r - q.r;
+          const d = dc * dc + dr * dr;
+          if (d < minDist) minDist = d;
+        }
+        const t = rnd();
+        const score = minDist + t * 1e-6;
+        if (score > bestScore || (score === bestScore && t > bestJitter)) {
+          bestScore = score;
+          bestJitter = t;
+          best = i;
+        }
+      }
+      ordered.push(pool.splice(best, 1)[0]);
+    }
+    return ordered;
+  }
+
+  function prepareSpawnCycle(seed) {
+    spawnSeed = Number.isFinite(seed) ? (seed >>> 0) : 0;
+    spawnCursor = 0;
+    spawnSequence = sortPadsForSpread(spawnSeed);
+    if (!spawnSequence.length) spawnSequence = [{ c: 0, r: BOUNDARY.decorativeRows }];
+    // The farthest-first order only varies between seeds via its random start
+    // pad (a 1-in-N collision for any seed pair). Rotating by seed % N keeps
+    // the spread-ordering property for partial consumption while guaranteeing
+    // neighbouring seeds assign actors to different pads.
+    const rot = spawnSeed % spawnSequence.length;
+    spawnSequence = spawnSequence.slice(rot).concat(spawnSequence.slice(0, rot));
+  }
+
+  function reserveSpawnPad() {
+    if (!spawnSequence.length) prepareSpawnCycle(spawnSeed + 1);
+    const next = spawnSequence[spawnCursor % spawnSequence.length];
+    spawnCursor += 1;
+    return spawnPadCentre(next);
+  }
+
+  function defaultSpawnPoint() {
     const h = CFG.playerRadius * T;
-    for (const [c, r] of SPAWN_CANDIDATES) {
+    for (const { c, r } of SPAWN_PADS) {
       const p = centre(c, r);
       if (isPlayableBody(p.x, p.y, h)) return p;
     }
@@ -243,8 +314,13 @@
   function spawn() {
     if (truthMode) return centre(16, 13);
     ensureNavigation();
-    const p = navigationSpawn || findSpawnPoint();
-    return p ? { x: p.x, y: p.y } : { x: W / 2, y: PLAYABLE_TOP + CFG.playerRadius * T };
+    const p = truthMode ? centre(16, 13) : reserveSpawnPad();
+    if (!p) {
+      return navigationSpawn || defaultSpawnPoint() || { x: W / 2, y: PLAYABLE_TOP + CFG.playerRadius * T };
+    }
+    return isPlayableBody(p.x, p.y, CFG.playerRadius * T)
+      ? { x: p.x, y: p.y }
+      : defaultSpawnPoint() || navigationSpawn || { x: W / 2, y: PLAYABLE_TOP + CFG.playerRadius * T };
   }
   function bodyInsidePlayableBounds(x, y, r) {
     return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(r)
@@ -435,7 +511,7 @@
   function ensureNavigation() {
     if (navigationReady) return true;
     if (!truthMode && !sourceMaskData()) return false;
-    navigationSpawn = findSpawnPoint();
+    navigationSpawn = defaultSpawnPoint();
     if (!navigationSpawn) return false;
     const start = tileOf(navigationSpawn.x, navigationSpawn.y);
     const q = [[start.c, start.r]];
@@ -551,6 +627,7 @@
     blockoutActive, boundaryPolicy: BOUNDARY, PLAYABLE_TOP,
     debugShiftProp(id,dx,dy){const p=PROP_COLLIDERS.find(q=>q.id===id);if(!p)return false;p.x+=dx;p.y+=dy;return true;},
     spawn, safeActorPosition, collide, camoSurface, draw, drawPropColliders, drawCollisionOverlay, drawLegalityOverlay, roundRect, roundRectPath,
+    prepareSpawnCycle, spawnSeed: () => spawnSeed, spawnSequenceLength: () => spawnSequence.length,
     freeTiles, hideTiles, centre, tileOf, path, pick, drawCamoOverlay, typeAt, wallDrawables, bushCanopyDrawables, propDrawables, truthPatchDrawables,
     isTruthPatch: truthMode, plateForegroundDrawables, drawOccupiedBushTreatment, resetBushTreatmentFrame, clearBushTreatmentForNewRound, drawOccupiedBushOverlay, drawCanopyAfterActors, sourceHitCircle, sourceContactAt, shapeHitCircle,
     // sdfDistanceAt removed from this export (Pass 0 punch list item 2a): the function it

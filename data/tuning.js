@@ -96,4 +96,23 @@ window.TUNING = {
   // hider density roughly proportionate without fully 1:1 scaling entity
   // count to floor area.
   counts: { dummies: 8 },   // AI dummy hiders alongside the player
+  // BS-013 (Option A): 3 authentic pads kept from PM-verified 50x27 ring centroids,
+  // 7 more pads derived from the 5-cell inset perimeter ring (pitch-approximation 5.4).
+  // Source reference: layout-reference hash 0f523c99bb0c195cd2472f664abb7ffe6477662dcbf054c55d34d07b89e6d0c6
+  spawn: {
+    source: 'art-reference-bs013-option-a',
+    source_sha256: '0f523c99bb0c195cd2472f664abb7ffe6477662dcbf054c55d34d07b89e6d0c6',
+    pads: [
+      [16, 5],
+      [44, 5], // PM correction: verified authentic cell (centroid 682px -> cell 44); builder's unexplained 46 reverted
+      [5, 16],
+      [30, 21],
+      [44, 20],
+      [28, 5],
+      [19, 21],
+      [6, 5],
+      [37, 5], // PM correction: (36,5) is a wall in the blockout grid; snapped 1 cell east to walkable
+      [11, 21],
+    ],
+  },
 };

@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -14,8 +14,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Brawl & Seek">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="stylesheet" href="css/fonts.css?v=67">
-  <link rel="stylesheet" href="css/main.css?v=67">
+  <link rel="stylesheet" href="css/fonts.css?v=69">
+  <link rel="stylesheet" href="css/main.css?v=69">
 </head>
 <body>
     <div id="rotate-device-prompt" aria-hidden="true">
@@ -36,7 +36,7 @@
     <canvas id="game"></canvas>
 
     <!-- Two-surface split (Concept Brief rule 3j, 20-07-2026, Tessa): the
-         public prototype is the in-game EVENT, pure â€” "your controls and
+         public prototype is the in-game EVENT, pure — "your controls and
          nothing else," matching her own bot-match recording. The badge row
          (CONCEPT + build stamp) is a hard line that must never be hidden in
          ANY view, so it stays, shrunk into a corner rather than a full
@@ -44,12 +44,12 @@
          surface (Map Maker returns behind ?debug=1/?maker=1, see maker.js). -->
     <div id="topbar">
       <span class="concept" title="Unofficial fan concept - not a real in-game screenshot">CONCEPT</span>
-      <span class="stamp">V67 - ACID LAKES ARENA PROMOTED</span>
+      <span class="stamp">V69 - ACID LAKES ARENA PROMOTED</span>
       <span class="truth-label">DIRECTIVE 008 DEVICE FIX</span>
     </div>
 
     <!-- In-game overlays, not a chrome chip row (rule 3j): learned from her
-         recording's own grammar â€” a single sparse plate top-left ("Brawlers
+         recording's own grammar — a single sparse plate top-left ("Brawlers
          left: N"), nothing else persistent across the top. Two plates only:
          hiders/seekers left (our "brawlers left" equivalent) and score (our
          mechanic has no real Brawl analogue, so it earns its own plate in
@@ -66,7 +66,7 @@
     <div id="bonus">+100</div>
     <div id="banner"></div>
 
-    <!-- Map Maker entry â€” debug-only (rule 3j): the tuning sandbox is hidden
+    <!-- Map Maker entry — debug-only (rule 3j): the tuning sandbox is hidden
          from the public event surface, not deleted. Revealed by ?debug=1 or
          ?maker=1 (src/maker.js), same pattern as the pace picker below. Its
          own teal accent keeps it visibly OUR tool, distinct from any Brawl
@@ -76,10 +76,10 @@
       <span>Map Maker</span>
     </button>
 
-    <!-- Bottom-right badge (rule 3k, 20-07-2026 â€” supersedes the earlier
+    <!-- Bottom-right badge (rule 3k, 20-07-2026 — supersedes the earlier
          camo-badge idea): controls only, same slot Brawl's own attack/Super
          button lives in. Camo state reads ON THE BRAWLER now (paint fill +
-         the youAreHere shimmer pulse, render.js/fx.js), never here â€” "no one
+         the youAreHere shimmer pulse, render.js/fx.js), never here — "no one
          looks at their control buttons when they play." As a hider this
          renders as the empty/disabled attack slot (game.js hud() forces
          class="disabled", no label, no icon); becomes the real Tag fire
@@ -90,8 +90,8 @@
 
     <p id="hint"><b>Move</b> with WASD / arrows (or drag on touch). <span class="paint">Hold still</span> to vanish; move to break camo.</p>
 
-    <!-- Pace picker â€” DEMOTED to a debug/capture affordance. Default speedScale
-         is now footage-measured (0.57, v26 â€” supersedes the earlier blind-A/B
+    <!-- Pace picker — DEMOTED to a debug/capture affordance. Default speedScale
+         is now footage-measured (0.57, v26 — supersedes the earlier blind-A/B
          0.70 pick baked from this picker's own "A" button). Hidden by default;
          shown with ?debug=1 or ?pace=1. See src/pace.js. -->
     <div id="pace" role="group" aria-label="Movement pace">
@@ -125,7 +125,7 @@
         <h4>Camo surfaces</h4>
         <p class="mk-hint">Which surfaces paint a hider in.</p>
         <!-- Per-surface tile-count hint (PM directive, 18-07-2026): faithful
-             to how the real Map Maker works â€” a map's own tile mix decides
+             to how the real Map Maker works — a map's own tile mix decides
              what it can hide you in, and a bushless map having "0" here
              teaches that, rather than hiding the honest gap. Counts are
              computed live from Arena.grid in src/maker.js, never hard-coded. -->
@@ -167,41 +167,41 @@
     <div class="disclaimer">Fan concept by Tessa Kerk - unofficial, not endorsed by Supercell - <a href="https://www.supercell.com/fan-content-policy" target="_blank" rel="noopener">Fan Content Policy</a></div>
   </div>
 
-  <!-- Implementation Session 1 (05-08-2026), Gate 0 item 3 / A18 Â§Â§C1/C8:
+  <!-- Implementation Session 1 (05-08-2026), Gate 0 item 3 / A18 §§C1/C8:
        corrected staged-bundle boot order. data/arena.js must run BEFORE
        bundle-select.js (it defines the two literal bundles bundle-select.js
        chooses between); bundle-select.js must run BEFORE every downstream
        consumer of window.ARENA/window.ARENA_BUNDLE, including src/assets.js
-       (Gate 0 item 1 â€” asset loading must follow bundle IDENTITY, never its
+       (Gate 0 item 1 — asset loading must follow bundle IDENTITY, never its
        own independent ?blockout=1 check) and src/arena.js (whose IIFE
-       freezes const closures the instant it parses â€” see A18 Â§C1's "why the
-       old Â§4.1 order was impossible"). blockout-validate.js's async
+       freezes const closures the instant it parses — see A18 §C1's "why the
+       old §4.1 order was impossible"). blockout-validate.js's async
        fetch+hash work starts as early as useful, right after assets.js,
        so it runs in parallel with image preload; its result is only
        consumed later, by game.js's boot(). -->
-  <script src="src/config.js?v=67"></script>
-  <script src="data/arena.js?v=67"></script>
-  <script src="src/bundle-select.js?v=67"></script>
-  <script src="src/assets.js?v=67"></script>
-  <script src="src/blockout-validate.js?v=67"></script>
-  <script src="data/collision.js?v=67"></script>
-  <script src="data/tuning.js?v=67"></script>
-  <script src="src/input.js?v=67"></script>
-  <script src="src/world.js?v=67"></script>
-  <script src="src/arena.js?v=67"></script>
-  <script src="src/ai.js?v=67"></script>
-  <script src="src/fx.js?v=67"></script>
-  <script src="src/player.js?v=67"></script>
-  <script src="src/tag.js?v=67"></script>
-  <script src="src/hider.js?v=67"></script>
-  <script src="src/seeker.js?v=67"></script>
-  <script src="src/round.js?v=67"></script>
-  <script src="src/render.js?v=67"></script>
-  <script src="src/reveal.js?v=67"></script>
-  <script src="src/maker.js?v=67"></script>
-  <script src="src/pace.js?v=67"></script>
-  <script src="src/debug.js?v=67"></script>
-  <script src="src/game.js?v=67"></script>
+  <script src="src/config.js?v=69"></script>
+  <script src="data/arena.js?v=69"></script>
+  <script src="src/bundle-select.js?v=69"></script>
+  <script src="src/assets.js?v=69"></script>
+  <script src="src/blockout-validate.js?v=69"></script>
+  <script src="data/collision.js?v=69"></script>
+  <script src="data/tuning.js?v=69"></script>
+  <script src="src/input.js?v=69"></script>
+  <script src="src/world.js?v=69"></script>
+  <script src="src/arena.js?v=69"></script>
+  <script src="src/ai.js?v=69"></script>
+  <script src="src/fx.js?v=69"></script>
+  <script src="src/player.js?v=69"></script>
+  <script src="src/tag.js?v=69"></script>
+  <script src="src/hider.js?v=69"></script>
+  <script src="src/seeker.js?v=69"></script>
+  <script src="src/round.js?v=69"></script>
+  <script src="src/render.js?v=69"></script>
+  <script src="src/reveal.js?v=69"></script>
+  <script src="src/maker.js?v=69"></script>
+  <script src="src/pace.js?v=69"></script>
+  <script src="src/debug.js?v=69"></script>
+  <script src="src/game.js?v=69"></script>
 </body>
 </html>
 
