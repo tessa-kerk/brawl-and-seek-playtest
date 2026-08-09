@@ -34,15 +34,40 @@ function createWorld(deps) {
   // checker floor) at zero art cost — it does not remove or unload the
   // world_plate asset; the ordinary path is byte-unaffected.
   const blockoutActive = !!(window.ARENA_BUNDLE && window.ARENA_BUNDLE.isBlockout);
+  let diagGrid = false;
+  const diagLayerSkip = new Set();
+  // Available debug painter names for blockout isolation:
+  // ground, ground-checker, floor-variation, water, wall-faces, wall-shadows,
+  // bush-canopy, bush-shadows, props, decals, world-debug-grid
+  const shouldDrawLayer = (name) => !diagLayerSkip.has(String(name || '').toLowerCase());
+  try {
+    const diagValues = typeof location !== 'undefined'
+      ? new URLSearchParams(location.search).getAll('diag')
+      : null;
+    for (const raw of diagValues || []) {
+      const diagValue = String(raw || '').trim().toLowerCase();
+      if (diagValue === '1' || diagValue === 'true') {
+        diagGrid = true;
+        continue;
+      }
+      if (!diagValue.startsWith('nolayer:')) continue;
+      for (const layer of diagValue.slice(8).split(',')) {
+        const key = layer.trim().toLowerCase();
+        if (key) diagLayerSkip.add(key);
+      }
+    }
+  } catch (_e) {}
   function draw(ctx, t, bleed) {
-    drawGround(ctx, bleed || { x0: 0, y0: 0, x1: W, y1: H });
+    const area = bleed || { x0: 0, y0: 0, x1: W, y1: H };
+    if (shouldDrawLayer('ground')) drawGround(ctx, area);
     if (window.Assets && Assets.get('world_plate') && !blockoutActive) { return; }
     if (truthMode) {
-      drawTruthLake(ctx, t);
+      if (shouldDrawLayer('water')) drawTruthLake(ctx, t);
     } else {
-      drawWater(ctx, t);
-      drawDecals(ctx);
+      if (shouldDrawLayer('water')) drawWater(ctx, t);
+      if (!blockoutActive) drawDecals(ctx);
     }
+    if (diagGrid && shouldDrawLayer('world-debug-grid')) drawWorldDebug(ctx, area);
     // NOTE: the fence, bush and stump/barrel props are NOT drawn here — they
     // all join the Y-sorted interleave in game.js render() alongside
     // entities (wallDrawables/bushCanopyDrawables/propDrawables), so a tall
@@ -68,7 +93,7 @@ function createWorld(deps) {
       drawAtomicWorld(ctx);
       return;
     }
-    const floorImg = window.Assets && Assets.get('floor');
+  const floorImg = window.Assets && Assets.get('floor');
     const bw = bleed.x1 - bleed.x0, bh = bleed.y1 - bleed.y0;
     if (floorImg) {
       const s = Math.max(bw / floorImg.naturalWidth, bh / floorImg.naturalHeight);
@@ -80,12 +105,97 @@ function createWorld(deps) {
       // no meaning beyond it), on a flat fill matching floorA everywhere else
       // in the bleed rect so there's still no visible seam.
       ctx.fillStyle = S.floorA; ctx.fillRect(bleed.x0, bleed.y0, bw, bh);
-      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-        if (grid[r][c] === '#') continue;
-        ctx.fillStyle = ((c + r) & 1) ? S.floorB : S.floorA;
-        ctx.fillRect(c * T, r * T, T, T);
+      if (shouldDrawLayer('ground-checker')) {
+        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+          if (grid[r][c] === '#') continue;
+          ctx.fillStyle = ((c + r) & 1) ? S.floorB : S.floorA;
+          ctx.fillRect(c * T, r * T, T, T);
+        }
       }
     }
+    if (blockoutActive && shouldDrawLayer('floor-variation')) drawBlockoutFloorVariation(ctx, bleed);
+  }
+
+  function drawBlockoutFloorVariation(ctx, bleed) {
+    const c0 = Math.max(0, Math.floor(bleed.x0 / T));
+    const c1 = Math.min(cols - 1, Math.floor(Math.max(0, bleed.x1 - 0.001) / T));
+    const r0 = Math.max(0, Math.floor(bleed.y0 / T));
+    const r1 = Math.min(rows - 1, Math.floor(Math.max(0, bleed.y1 - 0.001) / T));
+    if (c0 > c1 || r0 > r1) return;
+
+    ctx.save();
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        const cell = grid[r][c];
+        if (cell === '#' || cell === 'b' || cell === '~') continue;
+        const v = hashTile(c * 7 + 3, r * 11 + 5);
+        if (v < 0.12) {
+          const p = v / 0.12;
+          ctx.globalAlpha = 0.025 + 0.03 * (1 - p);
+          ctx.fillStyle = p < 0.45 ? S.floorB : S.floorA;
+          const px = c * T + T * (0.16 + p * 0.52);
+          const py = r * T + T * (0.20 + (1 - p) * 0.44);
+          ctx.fillRect(px, py, T * (0.16 + p * 0.18), T * (0.05 + p * 0.08));
+          continue;
+        }
+        if (v < 0.22) {
+          const p = (v - 0.12) / 0.10;
+          const px = c * T + T * (0.28 + p * 0.33);
+          const py = r * T + T * (0.52 + p * 0.14);
+          const xr = T * (0.06 + p * 0.02);
+          const yr = xr * 0.55;
+          ctx.globalAlpha = 0.02 + p * 0.03;
+          ctx.fillStyle = ((c + r + 1) & 1) ? S.floorA : S.floorB;
+          ctx.beginPath();
+          ctx.ellipse(px, py, xr, yr, 0, 0, 7);
+          ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawWorldDebug(ctx, bleed) {
+    const c0 = Math.max(0, Math.floor(bleed.x0 / T));
+    const c1 = Math.min(cols - 1, Math.floor(Math.max(0, bleed.x1 - 0.001) / T));
+    const r0 = Math.max(0, Math.floor(bleed.y0 / T));
+    const r1 = Math.min(rows - 1, Math.floor(Math.max(0, bleed.y1 - 0.001) / T));
+    if (c0 > c1 || r0 > r1) return;
+
+    const x0 = c0 * T, y0 = r0 * T, x1 = (c1 + 1) * T, y1 = (r1 + 1) * T;
+    const fontPx = Math.max(6, Math.min(9, T * 0.14));
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.font = `${fontPx}px Nunito Sans`;
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 0.7;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    ctx.setLineDash([]);
+    for (let c = c0; c <= c1 + 1; c++) {
+      const x = c * T;
+      ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+      if (c >= c0 && c <= c1) {
+        ctx.fillText(String(c), x + T * 0.05, y0 + T * 0.16);
+      }
+    }
+    for (let r = r0; r <= r1 + 1; r++) {
+      const y = r * T;
+      ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+      if (r >= r0 && r <= r1) {
+        ctx.fillText(String(r), x0 + T * 0.03, y + T * 0.16);
+      }
+    }
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        ctx.fillText(`${c},${r}`, c * T + T * 0.12, r * T + T * 0.78);
+      }
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([8, 5]);
+    ctx.strokeRect(0, 0, W, H);
+    ctx.restore();
   }
 
   function plateForegroundDrawables() {
@@ -444,6 +554,7 @@ function createWorld(deps) {
   const DECAL_KEYS = { bones_skull: 1, bones_pair: 1, bones_ribs: 1, bones_single: 1 };
 
   function drawDecals(ctx) {
+    if (!shouldDrawLayer('decals')) return;
     for (const p of PROPS) if (DECAL_KEYS[p.key]) { drawFossilCover(ctx,p); drawOneProp(ctx, p); }
   }
   function drawFossilCover(ctx,p){
@@ -452,6 +563,7 @@ function createWorld(deps) {
   }
 
   function propDrawables() {
+    if (!shouldDrawLayer('props')) return [];
     const out = [];
     for (const p of PROPS) if (!DECAL_KEYS[p.key]) out.push({ y: (p.r + 1) * T, draw: (ctx) => drawOneProp(ctx, p) });
     return out;
@@ -533,13 +645,15 @@ function createWorld(deps) {
    * the Y-sorted wall+entity interleave (game.js), so characters standing
    * at or behind a clump's near edge get genuine partial foliage occlusion. */
   function bushCanopyDrawables() {
+    if (!shouldDrawLayer('bush-canopy')) return [];
+    const includeShadows = shouldDrawLayer('bush-shadows') && !blockoutActive; // BS-012 final fix (PM, 05-08 local): bush-cluster shadows scale with cluster size — the promoted arena's long bush rows produced giant conical sweeps (bisected via ?diag=nolayer:bush-shadows). Same blockout gating as wall-shadows; proper shadow art returns with Pass 2 dressing.
     const regions = tileRegions((c, r) => grid[r][c] === 'b');
     const out = [];
-    for (const reg of regions) out.push({ y: (reg.r1 + 1) * T, draw: (ctx) => drawBushCluster(ctx, reg) });
+    for (const reg of regions) out.push({ y: (reg.r1 + 1) * T, draw: (ctx) => drawBushCluster(ctx, reg, includeShadows) });
     return out;
   }
 
-  function drawBushCluster(ctx, reg) {
+  function drawBushCluster(ctx, reg, includeShadows = true) {
     const x0 = reg.c0 * T, y0 = reg.r0 * T, x1 = (reg.c1 + 1) * T, y1 = (reg.r1 + 1) * T;
     const w = x1 - x0, h = y1 - y0, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
     const tuftImg = window.Assets && Assets.get('bush_tuft');
@@ -558,9 +672,12 @@ function createWorld(deps) {
       return;
     }
 
-    ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,.25)';
-    ctx.beginPath(); ctx.ellipse(cx, y1 - 2, w * 0.44, h * 0.18, 0, 0, 7); ctx.fill();
+    if (includeShadows) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,.25)';
+      ctx.beginPath(); ctx.ellipse(cx, y1 - 2, w * 0.44, h * 0.18, 0, 0, 7); ctx.fill();
+      ctx.restore();
+    }
 
     // darker base mass -- a SMALL plain-filled blob per tile, just enough
     // to back-fill any sliver a tuft stamp doesn't cover; kept subordinate
@@ -648,12 +765,14 @@ function createWorld(deps) {
    * boundary edges — never per-tile, which would just be the old
    * stamped-icon defect wearing a different asset. */
   function wallDrawables() {
+    if (!shouldDrawLayer('wall-faces')) return [];
+    const showWallShadows = shouldDrawLayer('wall-shadows') && !blockoutActive;
     const slab = window.Assets && Assets.get('fence_slab');
     const spike = window.Assets && Assets.get('fence_spike');
     const out = [];
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
       if (grid[r][c] !== '#') continue;
-      out.push({ y: (r + 1) * T, draw: (ctx) => drawOneFence(ctx, c, r, slab, spike) });
+      out.push({ y: (r + 1) * T, draw: (ctx) => drawOneFence(ctx, c, r, slab, spike, showWallShadows) });
     }
     return out;
   }
@@ -725,14 +844,15 @@ function createWorld(deps) {
     return !isWall(c - 1, r) || !isWall(c + 1, r) || !isWall(c, r - 1) || !isWall(c, r + 1);
   }
 
-  function drawOneFence(ctx, c, r, slab, spike) {
+  // BLOCKOUT FIX (BS-012): keep wall faces for boundary structure, but defer
+  // legacy wall-shadow silhouettes until Pass 2 to prevent mid-map dark streaks
+  // from the current blockout edge treatment.
+  function drawOneFence(ctx, c, r, slab, spike, showShadows = true) {
     const x = c * T, y = r * T;
     const edgeS = !isWall(c, r + 1);   // true south-facing edge of this structure
     ctx.save();
-    // Shared drop shadow — only at the structure's true base, once per span.
-    if (edgeS) {
-      ctx.fillStyle = 'rgba(0,0,0,.28)';
-      ctx.beginPath(); ctx.ellipse(x + T / 2, y + T * 0.96, T * 0.48, T * 0.12, 0, 0, 7); ctx.fill();
+    if (edgeS && showShadows) {
+      drawFenceGroundShadow(ctx, x, y, T);
     }
     // Gapless slab base: flush per-tile fill of the MATERIAL texture, not a
     // discrete object, so touching tiles form one continuous low rail with
@@ -779,6 +899,15 @@ function createWorld(deps) {
   }
 
   function line(ctx, x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+  function drawFenceGroundShadow(ctx, x, y, t) {
+    const rx = Math.min(t * 0.37, t * 0.74 / 2);
+    const ry = Math.min(t * 0.195, t * 0.39 / 2);
+    ctx.fillStyle = 'rgba(0,0,0,.25)';
+    ctx.beginPath();
+    ctx.ellipse(x + t / 2, y + t * 0.96, rx, ry, 0, 0, 7);
+    ctx.fill();
+  }
+
   // roundRectPath adds ONE rounded-rect subpath to whatever path is already
   // open — safe to call repeatedly inside a loop to accumulate several shapes
   // into one clip/fill/stroke (a single ctx.beginPath() before the loop, this

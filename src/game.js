@@ -86,8 +86,10 @@
   function updateCamera() {
     if (STATE.view === 'maker' || !window.Player) return;
     const viewW = cssW / scale, viewH = cssH / scale, a = CFG.camera.anchor;
-    cameraX = Math.max(0, Math.min(Arena.W - viewW, Player.x - viewW * a.x));
-    cameraY = Math.max(0, Math.min(Arena.H - viewH, Player.y - viewH * a.y));
+    const maxCamX = Math.max(0, Arena.W - viewW);
+    const maxCamY = Math.max(0, Arena.H - viewH);
+    cameraX = Math.min(maxCamX, Math.max(0, Player.x - viewW * a.x));
+    cameraY = Math.min(maxCamY, Math.max(0, Player.y - viewH * a.y));
     offX = -cameraX * scale;
     offY = -cameraY * scale;
   }
@@ -147,9 +149,11 @@
       x0: -offX / scale, y0: -offY / scale,
       x1: (cssW - offX) / scale, y1: (cssH - offY) / scale,
     };
+    const drawnBleed = clampToWorldRect(bleed);
+    paintWorldBoundaryOutOfView(ctx, bleed, drawnBleed);
     if (window.Assets && Assets.get('world_plate') && !blockoutActive && Arena.drawOccupiedBushTreatment && Round.phase !== 'over') Arena.drawOccupiedBushTreatment(ctx);
     if (Round.phase === 'over' && Arena.resetBushTreatmentFrame) Arena.resetBushTreatmentFrame();
-    Arena.draw(ctx, tSec, bleed);                    // atomic native world canvas is the sole ground source
+    Arena.draw(ctx, tSec, drawnBleed);                    // atomic native world canvas is the sole ground source
     FX.draw(ctx);
     if (maker) Arena.drawCamoOverlay(ctx);
 
@@ -191,6 +195,32 @@
     hud();
     if (window.Debug && Debug.on) Debug.frame();
     renderSerial++;
+  }
+
+  function clampToWorldRect(bleed) {
+    return {
+      x0: Math.max(0, Math.min(bleed.x0, Arena.W)),
+      y0: Math.max(0, Math.min(bleed.y0, Arena.H)),
+      x1: Math.max(0, Math.min(bleed.x1, Arena.W)),
+      y1: Math.max(0, Math.min(bleed.y1, Arena.H)),
+    };
+  }
+
+  function paintWorldBoundaryOutOfView(ctx, bleed, drawnBleed) {
+    if (
+      drawnBleed.x0 === bleed.x0 &&
+      drawnBleed.y0 === bleed.y0 &&
+      drawnBleed.x1 === bleed.x1 &&
+      drawnBleed.y1 === bleed.y1
+    ) return;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(23, 27, 51, 0.86)';
+    if (bleed.x0 < drawnBleed.x0) ctx.fillRect(bleed.x0, bleed.y0, drawnBleed.x0 - bleed.x0, bleed.y1 - bleed.y0);
+    if (drawnBleed.x1 < bleed.x1) ctx.fillRect(drawnBleed.x1, bleed.y0, bleed.x1 - drawnBleed.x1, bleed.y1 - bleed.y0);
+    if (bleed.y0 < drawnBleed.y0) ctx.fillRect(drawnBleed.x0, bleed.y0, drawnBleed.x1 - drawnBleed.x0, drawnBleed.y0 - bleed.y0);
+    if (drawnBleed.y1 < bleed.y1) ctx.fillRect(drawnBleed.x0, drawnBleed.y1, drawnBleed.x1 - drawnBleed.x0, bleed.y1 - drawnBleed.y1);
+    ctx.restore();
   }
 
   // ---- HUD ---------------------------------------------------------------
