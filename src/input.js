@@ -51,6 +51,28 @@
    * change mid-session. isRotated() mirrors the exact CSS media query. */
   function isRotated() { return matchMedia('(orientation: portrait) and (pointer: coarse) and (hover: none)').matches; }
   function stage() { return document.getElementById('stage'); }
+  function safeInsets() {
+    const cs = getComputedStyle(document.documentElement);
+    const toPx = (value) => {
+      const n = parseFloat(value);
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    };
+    return {
+      left: toPx(cs.getPropertyValue('--safe-left')),
+      right: toPx(cs.getPropertyValue('--safe-right')),
+      top: toPx(cs.getPropertyValue('--safe-top')),
+      bottom: toPx(cs.getPropertyValue('--safe-bottom')),
+    };
+  }
+  function rotatedAxes() {
+    if (!isRotated()) return null;
+    const vv = window.visualViewport;
+    const dims = [window.innerWidth, window.innerHeight];
+    if (vv) {
+      dims.push(vv.width, vv.height);
+    }
+    return { shortAxis: Math.min(...dims) };
+  }
   function geometry() {
     const el = stage();
     const rect = el ? el.getBoundingClientRect() : { left: 0, top: 0, right: innerWidth, bottom: innerHeight, width: innerWidth, height: innerHeight };
@@ -61,7 +83,8 @@
   function remap(x, y) {
     const g = geometry();
     if (!isRotated()) return { x: x - g.rect.left, y: y - g.rect.top };
-    return { x: y - g.rect.top, y: g.rect.right - x };
+    const shortAxis = rotatedAxes()?.shortAxis ?? g.rect.width;
+    return { x: y - g.rect.top, y: shortAxis - x };
   }
 
   // Tuning per mode.
@@ -99,7 +122,13 @@
   // excluded from the stick by the existing #makerpanel UI-exclusion rule
   // below — nothing to functionally protect, so keep this one position.
   function base() {
-    return { x: Math.max(78, gameW() * 0.15), y: gameH() - Math.max(120, gameH() * 0.17) };
+    const w = gameW(), h = gameH();
+    const basePos = { x: Math.max(78, w * 0.15), y: h - Math.max(120, h * 0.17) };
+    if (!isRotated()) return basePos;
+    const inset = safeInsets();
+    basePos.x = Math.max(inset.top + 24, Math.min(basePos.x, h - inset.bottom - 24));
+    basePos.y = Math.max(inset.right + 24, Math.min(basePos.y, w - inset.left - 24));
+    return basePos;
   }
   // Neutral translucent grey — real Brawl's own control language, not our
   // brand accent (Concept Brief rule 3g/3h UI split: inside the play frame,

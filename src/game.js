@@ -39,7 +39,31 @@
   let elHint, elStatus, elStatusLabel, elBanner, elBonus, elOvLeft, elOvRight, elPace;
   let lastPhase = 'hide', bannerT = 0, bonusArmed = false, lastDt = 0.016;
 
+  function isPortraitRotateStage() {
+    return matchMedia('(orientation: portrait) and (pointer: coarse) and (hover: none)').matches;
+  }
+
+  function fitRotatedPortraitStage() {
+    if (!stage || !isPortraitRotateStage()) {
+      stage.style.width = '';
+      stage.style.height = '';
+      stage.style.left = '';
+      stage.style.top = '';
+      return;
+    }
+    const vv = window.visualViewport;
+    const candidates = [window.innerWidth, window.innerHeight];
+    if (vv) {
+      candidates.push(vv.width, vv.height);
+    }
+    const longAxis = Math.max(...candidates);
+    const shortAxis = Math.min(...candidates);
+    stage.style.width = `${Math.round(longAxis)}px`;
+    stage.style.height = `${Math.round(shortAxis)}px`;
+  }
+
   function resize() {
+    fitRotatedPortraitStage();
     cssW = stage.clientWidth; cssH = stage.clientHeight;
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
