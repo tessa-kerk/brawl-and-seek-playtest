@@ -31,16 +31,25 @@
 
   const MODE = new URLSearchParams(location.search).get('joystick') === 'float' ? 'float' : 'fixed';
 
-  // Capability-aware portrait input remap:
-  // #stage remains unrotated; game.js rotates only the canvas world by
-  // -90° (PORTRAIT_CANVAS_ROTATION). Touch coordinates stay in page space,
-  // so they are translated into the rotated world space used by the renderer:
-  //   gameX = physicalY - rect.top
-  //   gameY = rect.height - (physicalX - rect.left)
-  // This matches the matrix in game.js: translate(0, cssH) -> rotate(-90°).
-  const PORTRAIT_CANVAS_ROTATION = Number.isFinite(window.PORTRAIT_CANVAS_ROTATION)
-    ? window.PORTRAIT_CANVAS_ROTATION
-    : -Math.PI / 2;
+  /* Capability-aware portrait coordinate remap (Concept Brief rule 3l —
+   * no rotate prompt; #stage itself renders rotated via CSS only for a
+   * portrait coarse/no-hover primary pointer, see main.css).
+   * Touch events keep reporting RAW physical clientX/clientY regardless of
+   * any CSS transform on an ancestor — the browser does NOT rotate touch
+   * coordinates for you, only the pixels it paints. Every touch coordinate
+   * used for game logic must be converted into #stage's OWN rotated-box
+   * space to match what game.js's cssW/cssH (stage.clientWidth/Height,
+   * unaffected by the transform) already assume.
+   * Derived from the exact mobile CSS transform (rotate(90deg)
+   * translateY(-100%), transform-origin:top left) on a box sized width=innerHeight,
+   * height=innerWidth: inverting that transform gives
+   *   gameX = physicalClientY
+   *   gameY = innerWidth − physicalClientX
+   * innerWidth here is the PHYSICAL viewport width (the box's own height,
+   * i.e. the translateY(-100%) distance) — always call remap() with the
+   * live window.innerWidth, never a cached value, since orientation can
+   * change mid-session. isRotated() mirrors the exact CSS media query.
+   */
   function isRotated() { return matchMedia('(orientation: portrait) and (pointer: coarse) and (hover: none)').matches; }
   function stage() { return document.getElementById('stage'); }
   function safeInsets() {
@@ -66,11 +75,7 @@
   function remap(x, y) {
     const g = geometry();
     if (!isRotated()) return { x: x - g.rect.left, y: y - g.rect.top };
-    if (PORTRAIT_CANVAS_ROTATION !== -Math.PI / 2) {
-      // Keep the remap tied to the same rotation primitive as the frame draw.
-      return { x: g.width - (y - g.rect.top), y: x - g.rect.left };
-    }
-    return { x: y - g.rect.top, y: g.height - (x - g.rect.left) };
+    return { x: y - g.rect.top, y: g.rect.right - x };
   }
 
   // Tuning per mode.

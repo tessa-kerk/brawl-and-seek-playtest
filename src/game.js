@@ -37,108 +37,17 @@
   let cameraX = 0, cameraY = 0;
   let last = 0, tSec = 0, renderSerial = 0;
   let elHint, elStatus, elStatusLabel, elBanner, elBonus, elOvLeft, elOvRight, elPace;
-  let fit = { active: false };
-  let safeAreaProbe = null;
   const STAMP_TRIPLE_TAP_MS = 900;
-  const PORTRAIT_CANVAS_ROTATION = -Math.PI / 2;
-  window.PORTRAIT_CANVAS_ROTATION = PORTRAIT_CANVAS_ROTATION;
   let lastPhase = 'hide', bannerT = 0, bonusArmed = false, lastDt = 0.016;
-
-  function isPortraitRotateStage() {
-    return matchMedia('(orientation: portrait) and (pointer: coarse) and (hover: none)').matches;
-  }
+  let fit = { active: false };
 
   function isStandaloneMode() {
     const displayModeStandalone = matchMedia('(display-mode: standalone)').matches;
     return displayModeStandalone || !!(navigator.standalone);
   }
 
-  function toPx(v) {
-    const n = parseFloat(v);
-    return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
-  }
-
-  function getSafeAreaProbe() {
-    if (safeAreaProbe) return safeAreaProbe;
-    const p = document.createElement('div');
-    Object.assign(p.style, {
-      position: 'fixed',
-      left: '0',
-      top: '0',
-      width: '1px',
-      height: '1px',
-      paddingTop: 'env(safe-area-inset-top)',
-      paddingRight: 'env(safe-area-inset-right)',
-      paddingBottom: 'env(safe-area-inset-bottom)',
-      paddingLeft: 'env(safe-area-inset-left)',
-      pointerEvents: 'none',
-      visibility: 'hidden',
-      zIndex: '-1',
-    });
-    safeAreaProbe = p;
-    (document.body || document.documentElement).appendChild(p);
-    return p;
-  }
-
-  function readSafeAreaInsetsFromProbe() {
-    const probe = getSafeAreaProbe();
-    const cs = getComputedStyle(probe);
-    const top = toPx(cs.paddingTop);
-    const right = toPx(cs.paddingRight);
-    const bottom = toPx(cs.paddingBottom);
-    const left = toPx(cs.paddingLeft);
-
-    const root = document.documentElement;
-    root.style.setProperty('--safe-top', `${top}px`);
-    root.style.setProperty('--safe-right', `${right}px`);
-    root.style.setProperty('--safe-bottom', `${bottom}px`);
-    root.style.setProperty('--safe-left', `${left}px`);
-
-    return { top, right, bottom, left, sumV: top + bottom };
-  }
-
-  function fitRotatedPortraitStage() {
-    if (!stage || !isPortraitRotateStage()) {
-      stage.style.width = '';
-      stage.style.height = '';
-      stage.style.left = '';
-      stage.style.top = '';
-      fit = { active: false };
-      return;
-    }
-
-    const vv = window.visualViewport;
-    const doc = document.documentElement;
-    // Portrait path now reads layout directly from the unrotated stage box.
-    // No viewport-unit math, no container rotate math. The canvas fits the
-    // live stage bounds computed by getBoundingClientRect().
-    const rect = stage.getBoundingClientRect();
-    const safeInsets = readSafeAreaInsetsFromProbe();
-    const standalone = isStandaloneMode();
-    const stageRect = {
-      left: Math.round(rect.left),
-      top: Math.round(rect.top),
-      width: Math.round(rect.width),
-      height: Math.round(rect.height),
-    };
-
-    stage.style.width = '';
-    stage.style.height = '';
-    stage.style.left = '0';
-    stage.style.top = '0';
-
-    fit = {
-      active: true,
-      viewport: {
-        clientW: Math.max(0, Math.round(doc.clientWidth)),
-        clientH: Math.max(0, Math.round(doc.clientHeight)),
-      },
-      safeInsets,
-      standalone,
-      mode: standalone ? 'standalone' : 'tab',
-      stageRect,
-      vv: vv ? { w: Math.round(vv.width), h: Math.round(vv.height), offsetTop: Math.round(vv.offsetTop) } : null,
-    };
+  function isPortraitRotateStage() {
+    return matchMedia('(orientation: portrait) and (pointer: coarse) and (hover: none)').matches;
   }
 
   function toggleDebugFromStamp() {
@@ -172,7 +81,6 @@
   }
 
   function resize() {
-    fitRotatedPortraitStage();
     cssW = stage.clientWidth; cssH = stage.clientHeight;
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
@@ -214,6 +122,14 @@
       scale = cssH * CFG.camera.source.tilePx / (CFG.camera.source.fieldH * CFG.tile);
       updateCamera();
     }
+
+    fit = {
+      active: true,
+      source: isPortraitRotateStage() ? 'portrait-css-rotate' : 'normal',
+      standalone: isStandaloneMode(),
+      mode: isStandaloneMode() ? 'standalone' : 'tab',
+      stageRect: { width: Math.round(cssW), height: Math.round(cssH) },
+    };
   }
 
   function updateCamera() {
@@ -270,38 +186,17 @@
         offX = (availW - Arena.W * scale) / 2; offY = 92 + (availH - Arena.H * scale) / 2;
       } else updateCamera();
     }
-    const isPortraitRotate = isPortraitRotateStage();
-    let isCanvasRotated = false;
-    if (isPortraitRotate) {
-      isCanvasRotated = true;
-      // Keep #stage unrotated, rotate only the canvas scene.
-      ctx.save();
-      // Rotate the world to landscape for portrait-coarse players.
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.translate(0, cssH);
-      ctx.rotate(PORTRAIT_CANVAS_ROTATION);
-      ctx.scale(scale, scale);
-      ctx.translate(offX / scale, offY / scale);
-    } else {
-      ctx.setTransform(scale * dpr, 0, 0, scale * dpr, offX * dpr, offY * dpr);
-    }
+    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, offX * dpr, offY * dpr);
 
     // The world-space rect that exactly covers the full CSS canvas at the
     // current fit — same undimmed ground continues past the playable Arena
     // bounds in every direction, so there's no rectangle edge to see: the
     // boundary reads through where wall/water/entities stop, never through a
     // visible frame. (rule 3l law 1)
-    const bleed = isPortraitRotate
-      ? {
-          x0: -offY / scale,
-          y0: (cssH - cssW - offX) / scale,
-          x1: (cssH - offY) / scale,
-          y1: (cssH - offX) / scale,
-        }
-      : {
-          x0: -offX / scale, y0: -offY / scale,
-          x1: (cssW - offX) / scale, y1: (cssH - offY) / scale,
-        };
+    const bleed = {
+      x0: -offX / scale, y0: -offY / scale,
+      x1: (cssW - offX) / scale, y1: (cssH - offY) / scale,
+    };
     if (window.Assets && Assets.get('world_plate') && !blockoutActive && Arena.drawOccupiedBushTreatment && Round.phase !== 'over') Arena.drawOccupiedBushTreatment(ctx);
     if (Round.phase === 'over' && Arena.resetBushTreatmentFrame) Arena.resetBushTreatmentFrame();
     Arena.draw(ctx, tSec, bleed);                    // atomic native world canvas is the sole ground source
@@ -337,7 +232,6 @@
     Tags.draw(ctx);
     if (!maker) Reveal.frame(ctx, tSec);           // dim + reveal markers when over
 
-    if (isCanvasRotated) ctx.restore();              // back to screen space
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);        // screen space
     if (!maker && Round.phase === 'over' && Round.overT < Reveal.delay()) {
       if (Round.result.reason === 'spotted') Render.drawSpotted(ctx, cssW, cssH, Round.overT);

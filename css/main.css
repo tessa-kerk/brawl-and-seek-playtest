@@ -36,6 +36,30 @@ body{
 #stage{position:fixed;inset:0;overflow:hidden;touch-action:none;overscroll-behavior:none;}
 #game{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;}
 
+#portrait-letterbox{
+  position:fixed;
+  inset:0;
+  z-index:1;
+  pointer-events:none;
+  display:none;
+  background:#1E2340;
+  align-items:center;
+  justify-content:center;
+}
+#portrait-letterbox span{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%) rotate(90deg);
+  transform-origin:center;
+  font-family:'Lilita One',cursive;
+  font-size:clamp(18px, 10vw, 64px);
+  letter-spacing:.08em;
+  color:#F6F4EF;
+  opacity:.18;
+  white-space:nowrap;
+}
+
 /* No rotate prompt (Concept Brief rule 3l, 20-07-2026 — "it loads landscape
    and you turn," never a stop-and-ask screen). Held portrait, #stage itself
    rotates 90° to fill the physical viewport landscape-style: its OWN layout
@@ -52,79 +76,13 @@ body{
 /* Portrait (coarse-pointer) play path: #stage remains unrotated.
    The canvas world is rotated in JS; HUD is rotated per-element. */
 @media (orientation:portrait) and (pointer:coarse) and (hover:none){
-  #topbar{
-    right:calc(env(safe-area-inset-right) + 8px);
-    left:auto;
-    top:calc(env(safe-area-inset-top) + 8px);
-    transform:rotate(90deg);
-    transform-origin:top right;
-  }
-  #ov-left{
-    left:calc(env(safe-area-inset-left) + 10px);
-    top:calc(env(safe-area-inset-top) + 10px);
-    transform:rotate(90deg);
+  #portrait-letterbox{display:flex;}
+  #stage{
+    top:0; left:0; right:auto; bottom:auto;
+    width:max(100lvh,100dvh); height:100lvw;
     transform-origin:top left;
-  }
-  #ov-right{
-    right:calc(env(safe-area-inset-right) + 10px);
-    top:calc(env(safe-area-inset-top) + 38px);
-    transform:rotate(90deg);
-    transform-origin:top right;
-  }
-  #bonus{
-    left:auto;
-    right:calc(env(safe-area-inset-right) + 10px);
-    top:calc(env(safe-area-inset-top) + 126px);
-    transform:translateX(0) rotate(90deg);
-    transform-origin:top right;
-  }
-  #banner{
-    right:calc(env(safe-area-inset-right) + 10px);
-    left:auto;
-    top:50%;
-    transform:rotate(90deg) translateY(-50%);
-    transform-origin:top right;
-  }
-  .disclaimer{
-    left:calc(env(safe-area-inset-left) + 8px);
-    right:auto;
-    top:calc(env(safe-area-inset-top) + 8px);
-    bottom:auto;
-    text-align:left;
-    transform:rotate(90deg);
-    transform-origin:top left;
-    max-width:78vw;
-  }
-  #endpanel{
-    left:auto;
-    right:calc(env(safe-area-inset-right) + 12px);
-    bottom:auto;
-    top:50%;
-    transform:rotate(90deg) translateY(-50%);
-    transform-origin:top right;
-  }
-  #pace{
-    right:calc(env(safe-area-inset-right) + 10px);
-    left:auto;
-    top:calc(env(safe-area-inset-top) + 10px);
-    bottom:auto;
-    transform:rotate(90deg);
-    transform-origin:top right;
-  }
-  #hint{
-    right:calc(env(safe-area-inset-right) + 8px);
-    left:auto;
-    bottom:auto;
-    top:calc(env(safe-area-inset-top) + 280px);
-    transform:rotate(90deg);
-    transform-origin:top right;
-  }
-  #status,
-  #status-label{
-    right:calc(env(safe-area-inset-right) + 22px);
-    bottom:calc(env(safe-area-inset-bottom) + 22px);
-    transform:rotate(90deg);
-    transform-origin:top right;
+    transform:rotate(90deg) translateY(-100%);
+    z-index:2;
   }
 }
 
@@ -152,10 +110,9 @@ body{
   position:absolute;top:0;right:0;
   display:flex;align-items:center;gap:6px;
   padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;
-  pointer-events:auto;z-index:5;
+  pointer-events:none;z-index:5;
 }
 .truth-label{display:none;}
-.concept,.truth-label{pointer-events:none;}
 body.truth-patch .truth-label{
   display:block;position:fixed;left:50%;top:8px;transform:translateX(-50%);
   z-index:12;max-width:52vw;text-align:center;font:800 8px/1.2 'Nunito Sans',sans-serif;
@@ -198,6 +155,7 @@ body.truth-patch #hint,body.truth-patch #ov-left,body.truth-patch #ov-right,body
 /* Clears #topbar's CONCEPT/stamp badges (same corner, hard line — must
    never be occluded), so this plate sits below them, not overlapping. */
 #ov-right{top:calc(env(safe-area-inset-top) + 38px);right:calc(env(safe-area-inset-right) + 10px);text-align:right;}
+#ov-right{pointer-events:auto;}
 .ov-row{display:flex;align-items:baseline;gap:5px;white-space:nowrap;}
 #ov-right .ov-row{justify-content:flex-end;}
 .ov-row b{font-family:'Lilita One',cursive;font-weight:400;font-size:18px;color:var(--chalk);letter-spacing:.02em;text-shadow:0 1px 0 rgba(0,0,0,.6);}
