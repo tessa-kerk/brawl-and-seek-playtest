@@ -40,6 +40,8 @@
   let fit = { active: false };
   let safeAreaProbe = null;
   const STAMP_TRIPLE_TAP_MS = 900;
+  const PORTRAIT_CANVAS_ROTATION = -Math.PI / 2;
+  window.PORTRAIT_CANVAS_ROTATION = PORTRAIT_CANVAS_ROTATION;
   let lastPhase = 'hide', bannerT = 0, bonusArmed = false, lastDt = 0.016;
 
   function isPortraitRotateStage() {
@@ -95,34 +97,6 @@
     return { top, right, bottom, left, sumV: top + bottom };
   }
 
-  function fitAxisForRotatedStandlone(clientW, clientH) {
-    const standalone = isStandaloneMode();
-    const baseLong = Math.max(clientW, clientH);
-    const insets = readSafeAreaInsetsFromProbe();
-    const insetSumV = insets.sumV;
-    const useInsetLayout = standalone && insetSumV > 0;
-    const shortAxis = Math.min(clientW, clientH);
-
-    let longAxis = baseLong;
-    let source = 'layout';
-    if (standalone && !useInsetLayout) {
-      const screenH = Math.max(0, Math.round(screen.height));
-      longAxis = screenH > 0 ? screenH : baseLong;
-      source = 'screenH';
-    }
-    if (standalone && useInsetLayout) longAxis = baseLong + insetSumV;
-
-    return {
-      longAxis: Math.max(1, longAxis),
-      shortAxis: Math.max(1, shortAxis),
-      source,
-      mode: standalone ? 'standalone' : 'tab',
-      safeInsets: insets,
-      standalone: standalone,
-      sourceInsetV: insetSumV,
-    };
-  }
-
   function fitRotatedPortraitStage() {
     if (!stage || !isPortraitRotateStage()) {
       stage.style.width = '';
@@ -135,29 +109,35 @@
 
     const vv = window.visualViewport;
     const doc = document.documentElement;
-    const clientW = Math.max(0, Math.round(doc.clientWidth));
-    const clientH = Math.max(0, Math.round(doc.clientHeight));
-    const size = fitAxisForRotatedStandlone(clientW, clientH);
-    const longAxis = size.longAxis;
-    const shortAxis = size.shortAxis;
+    // Portrait path now reads layout directly from the unrotated stage box.
+    // No viewport-unit math, no container rotate math. The canvas fits the
+    // live stage bounds computed by getBoundingClientRect().
+    const rect = stage.getBoundingClientRect();
+    const safeInsets = readSafeAreaInsetsFromProbe();
+    const standalone = isStandaloneMode();
+    const stageRect = {
+      left: Math.round(rect.left),
+      top: Math.round(rect.top),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    };
 
-    stage.style.width = `${longAxis}px`;
-    stage.style.height = `${shortAxis}px`;
+    stage.style.width = '';
+    stage.style.height = '';
     stage.style.left = '0';
     stage.style.top = '0';
 
     fit = {
       active: true,
-      viewport: { clientW, clientH },
-      safeInsets: size.safeInsets,
-      source: size.source,
-      standalone: size.standalone,
-      mode: size.mode,
-      sourceInsetV: size.sourceInsetV,
-      longAxis,
-      shortAxis,
+      viewport: {
+        clientW: Math.max(0, Math.round(doc.clientWidth)),
+        clientH: Math.max(0, Math.round(doc.clientHeight)),
+      },
+      safeInsets,
+      standalone,
+      mode: standalone ? 'standalone' : 'tab',
+      stageRect,
       vv: vv ? { w: Math.round(vv.width), h: Math.round(vv.height), offsetTop: Math.round(vv.offsetTop) } : null,
-      style: { width: `${longAxis}px`, height: `${shortAxis}px` },
     };
   }
 
@@ -170,21 +150,25 @@
     Debug.init();
   }
 
-  function bindStampTapToggle(stampEl) {
-    // Triple-tap (3 taps within 900ms) on the build-stamp element toggles debug.
-    // This gives us overlay access in installed homescreen mode where URL editing
-    // is not practical on-device.
-    let stampTaps = [];
-    const onStampTap = () => {
+  function bindDebugTapToggle(target) {
+    if (!target) return;
+    const taps = [];
+    const onTap = () => {
       const now = performance.now();
-      stampTaps = stampTaps.filter((t) => now - t <= STAMP_TRIPLE_TAP_MS);
-      stampTaps.push(now);
-      if (stampTaps.length >= 3) {
-        stampTaps = [];
+      if (taps.length && now - taps[taps.length - 1] < 35) return;
+      while (taps.length && now - taps[0] > STAMP_TRIPLE_TAP_MS) taps.shift();
+      taps.push(now);
+      if (taps.length >= 3) {
+        taps.length = 0;
         toggleDebugFromStamp();
       }
     };
-    stampEl.addEventListener('pointerdown', onStampTap);
+    target.addEventListener('pointerdown', onTap, { passive: true });
+    target.addEventListener('touchstart', onTap, { passive: true });
+  }
+  function bindDebugTapTargets() {
+    bindDebugTapToggle(document.getElementById('topbar'));
+    bindDebugTapToggle(document.getElementById('ov-right'));
   }
 
   function resize() {
@@ -286,16 +270,38 @@
         offX = (availW - Arena.W * scale) / 2; offY = 92 + (availH - Arena.H * scale) / 2;
       } else updateCamera();
     }
-    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, offX * dpr, offY * dpr);
+    const isPortraitRotate = isPortraitRotateStage();
+    let isCanvasRotated = false;
+    if (isPortraitRotate) {
+      isCanvasRotated = true;
+      // Keep #stage unrotated, rotate only the canvas scene.
+      ctx.save();
+      // Rotate the world to landscape for portrait-coarse players.
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.translate(0, cssH);
+      ctx.rotate(PORTRAIT_CANVAS_ROTATION);
+      ctx.scale(scale, scale);
+      ctx.translate(offX / scale, offY / scale);
+    } else {
+      ctx.setTransform(scale * dpr, 0, 0, scale * dpr, offX * dpr, offY * dpr);
+    }
+
     // The world-space rect that exactly covers the full CSS canvas at the
     // current fit — same undimmed ground continues past the playable Arena
     // bounds in every direction, so there's no rectangle edge to see: the
     // boundary reads through where wall/water/entities stop, never through a
     // visible frame. (rule 3l law 1)
-    const bleed = {
-      x0: -offX / scale, y0: -offY / scale,
-      x1: (cssW - offX) / scale, y1: (cssH - offY) / scale,
-    };
+    const bleed = isPortraitRotate
+      ? {
+          x0: -offY / scale,
+          y0: (cssH - cssW - offX) / scale,
+          x1: (cssH - offY) / scale,
+          y1: (cssH - offX) / scale,
+        }
+      : {
+          x0: -offX / scale, y0: -offY / scale,
+          x1: (cssW - offX) / scale, y1: (cssH - offY) / scale,
+        };
     if (window.Assets && Assets.get('world_plate') && !blockoutActive && Arena.drawOccupiedBushTreatment && Round.phase !== 'over') Arena.drawOccupiedBushTreatment(ctx);
     if (Round.phase === 'over' && Arena.resetBushTreatmentFrame) Arena.resetBushTreatmentFrame();
     Arena.draw(ctx, tSec, bleed);                    // atomic native world canvas is the sole ground source
@@ -331,6 +337,7 @@
     Tags.draw(ctx);
     if (!maker) Reveal.frame(ctx, tSec);           // dim + reveal markers when over
 
+    if (isCanvasRotated) ctx.restore();              // back to screen space
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);        // screen space
     if (!maker && Round.phase === 'over' && Round.overT < Reveal.delay()) {
       if (Round.result.reason === 'spotted') Render.drawSpotted(ctx, cssW, cssH, Round.overT);
@@ -492,13 +499,18 @@
 
     document.getElementById('replay').addEventListener('click', newRound);
     document.body.classList.toggle('truth-patch', !!Arena.isTruthPatch);
-    const stamp = document.querySelector('.stamp');
     const concept = document.querySelector('.concept');
     if (concept) concept.title = 'Unofficial fan concept - not a real in-game screenshot';
     const cleanText = { '#mk-back': '< Event', '.mk-map': 'Fresh Paint - 50 x 27 - camouflage properties', '#mk-warn': 'No surface camouflages - nobody can hide on this map.', '.mk-note': 'Changes apply live. Move, stop, vanish - every map sets its own rules.', '.disclaimer': 'Fan concept by Tessa Kerk - unofficial, not endorsed by Supercell - Fan Content Policy' };
     for (const [sel, value] of Object.entries(cleanText)) { const el = document.querySelector(sel); if (el) el.textContent = value; }
+    const stamp = document.querySelector('.stamp');
     if (stamp) stamp.textContent = `V${CFG.BUILD.n} - ${CFG.BUILD.milestone}`;
-    if (stamp) bindStampTapToggle(stamp);
+    if (isStandaloneMode()) {
+      if (document.readyState === 'loading') addEventListener('DOMContentLoaded', bindDebugTapTargets);
+      else bindDebugTapTargets();
+    } else {
+      bindDebugTapTargets();
+    }
 
     if (window.Maker) Maker.init();                 // wires the editor panel (+ ?view=maker)
     if (new URLSearchParams(location.search).has('debug') && window.Debug) Debug.init();
